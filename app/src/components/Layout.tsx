@@ -4,10 +4,22 @@ import { useDatos } from '../lib/contexto'
 import { fecha } from '../lib/formato'
 import { MultiSelect, SelectBox } from './Selectores'
 
-const PAGINAS = [
+// Mismas páginas que el Streamlit (app.py). Las que aún no están portadas se ven deshabilitadas.
+const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { ruta: '/', etiqueta: 'Resumen gerencial' },
   { ruta: '/cartera', etiqueta: 'Cartera' },
+  { etiqueta: 'Roll rates' },
+  { etiqueta: 'Rodamiento real' },
+  { etiqueta: 'Gestión de cobros' },
+  { etiqueta: 'Coreografías de gestión' },
   { ruta: '/recuperacion', etiqueta: 'Recuperación' },
+  { etiqueta: 'Visitas de campo' },
+  { etiqueta: 'Comisiones de campo' },
+  { etiqueta: 'Cuentas a gestionar' },
+  { etiqueta: 'Ficha de crédito' },
+  { etiqueta: 'Metas y cumplimiento' },
+  { ruta: '/parametros', etiqueta: 'Administración' },
+  { etiqueta: 'Evolución de mora' },
 ]
 
 
@@ -27,14 +39,21 @@ export default function Layout() {
       <div className="con-lateral">
         <aside className="lateral">
           <div className="marca">Cartera y cobranza · El Salvador</div>
-          <nav style={{ display: 'grid', gap: 4 }}>
-            {PAGINAS.map((p) => (
-              <Link key={p.ruta} to={p.ruta} className={ubicacion.pathname === p.ruta ? 'activo' : undefined}
-                style={{ color: 'var(--indigo)', textDecoration: 'none', padding: '0.28rem 0.5rem', borderRadius: 8, fontWeight: ubicacion.pathname === p.ruta ? 700 : 600,
-                  background: ubicacion.pathname === p.ruta ? '#eaf5ec' : undefined }}>
-                {p.etiqueta}
-              </Link>
-            ))}
+          <nav className="menu">
+            {PAGINAS.map((p) => {
+              const activa = p.ruta !== undefined && ubicacion.pathname === p.ruta
+              const cuerpo = (
+                <>
+                  <span className={`punto${activa ? ' on' : ''}`} />
+                  {p.etiqueta}
+                </>
+              )
+              return p.ruta === undefined ? (
+                <span key={p.etiqueta} className="radio pendiente" title="Pendiente de portar">{cuerpo}</span>
+              ) : (
+                <Link key={p.etiqueta} to={p.ruta} className={`radio${activa ? ' activo' : ''}`}>{cuerpo}</Link>
+              )
+            })}
           </nav>
           <hr style={{ width: '100%', border: 0, borderTop: '1px solid var(--linea)' }} />
           {cargando && <div className="vacio">Cargando fechas…</div>}

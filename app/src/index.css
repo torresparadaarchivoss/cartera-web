@@ -12,8 +12,8 @@ body {
 }
 
 h1, h2, h3 { color: var(--indigo); letter-spacing: -0.01em; margin: 0; }
-h1 { font-size: 1.7rem; font-weight: 800; }
-h3 { font-size: 1.05rem; font-weight: 700; margin: 0.9rem 0 0.25rem; }
+h1 { font-size: 2.2rem; font-weight: 700; line-height: 1.2; }
+h3 { font-size: 1.6rem; font-weight: 600; margin: 1.2rem 0 0.5rem; display: flex; align-items: center; gap: 6px; }
 a { color: var(--verde-marca); }
 
 /* Encabezado de página con acento de marca (como .dc-head) */
@@ -44,7 +44,7 @@ a { color: var(--verde-marca); }
 .barra-sup .usuario { color: var(--gris); font-size: 0.85rem; }
 
 /* Layout con menú lateral */
-.con-lateral { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 56px); }
+.con-lateral { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 56px); }
 .lateral {
   background: var(--blanco);
   border-right: 1px solid var(--linea);
@@ -175,3 +175,34 @@ input, select {
 .st-lista li.sel { color: #389848; font-weight: 600; }
 .st-check { width: 14px; color: #389848; font-weight: 700; }
 .st-vacio { color: #8a8fa8; padding: 6px 12px; font-size: 0.9rem; }
+
+/* Menú lateral como radios (como el Streamlit) */
+.menu { display: grid; gap: 2px; }
+.radio {
+  display: flex; align-items: center; gap: 10px; padding: 0.3rem 0.55rem; border-radius: 8px;
+  color: #31333f; text-decoration: none; font-size: 0.95rem; font-weight: 500;
+}
+a.radio:hover { background: #f0f2f6; }
+.radio.activo { background: #e8f5ea; color: #389848; font-weight: 700; }
+.radio.pendiente { color: #b4b8c6; cursor: default; }
+.punto { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #c9ccd6; flex: none; position: relative; }
+.punto.on { border-color: #389848; }
+.punto.on::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: #389848; }
+.radio.pendiente .punto { border-color: #e1e3ea; }
+
+/* Ayuda (?) y burbuja */
+.ayuda { position: relative; display: inline-flex; color: #8a8fa8; cursor: help; margin-left: 4px; vertical-align: middle; }
+.ayuda:focus { outline: none; }
+.burbuja {
+  display: none; position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+  background: #262730; color: #fff; font-size: 0.85rem; font-weight: 400; line-height: 1.45; padding: 8px 12px;
+  border-radius: 6px; width: max-content; max-width: 320px; white-space: normal; z-index: 100;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2); text-align: left;
+}
+.ayuda:hover .burbuja, .ayuda:focus .burbuja { display: block; }
+
+/* Fondo de los selectores como el Streamlit */
+.st-caja { background: #f0f2f6; border-color: transparent; }
+.st-caja:hover { border-color: #389848; background: #f0f2f6; }
+.st-caja.abierta { background: #fff; }
+.st-chip { background: #389848; }

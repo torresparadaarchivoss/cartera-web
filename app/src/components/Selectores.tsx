@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Ayuda } from './Bloques'
 
 // Widgets con el aspecto de Streamlit (multiselect y selectbox del tema de components/theme.py).
 // Multiselección: chips verdes con × y lista desplegable con buscador y marca de selección.
@@ -46,7 +47,7 @@ export function MultiSelect({ etiqueta, ayuda, opciones, valor, onChange, format
 
   return (
     <div className="st-campo" ref={ref}>
-      <div className="st-etiqueta" title={ayuda}>{etiqueta}</div>
+      <div className="st-etiqueta">{etiqueta}{ayuda && <Ayuda texto={ayuda} />}</div>
       <div className="st-wrap">
       <div className={`st-caja${abierto ? ' abierta' : ''}`} onClick={() => setAbierto(true)}>
         {valor.length === 0 && !abierto && <span className="st-placeholder">{placeholder}</span>}
@@ -98,7 +99,7 @@ export function SelectBox<T extends string>({ etiqueta, ayuda, opciones, valor, 
   const actual = opciones.find((o) => o.valor === valor)?.etiqueta ?? ''
   return (
     <div className="st-campo" ref={ref}>
-      <div className="st-etiqueta" title={ayuda}>{etiqueta}</div>
+      <div className="st-etiqueta">{etiqueta}{ayuda && <Ayuda texto={ayuda} />}</div>
       <div className="st-wrap">
       <div className={`st-caja${abierto ? ' abierta' : ''}`} onClick={() => setAbierto(!abierto)} role="combobox"
         aria-expanded={abierto} tabIndex={0}

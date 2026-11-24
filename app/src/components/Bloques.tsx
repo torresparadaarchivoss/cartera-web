@@ -15,10 +15,25 @@ export const TONOS = {
 } as const
 export type Tono = keyof typeof TONOS
 
+// Ícono de ayuda con burbuja oscura al pasar el mouse (como el «?» de Streamlit).
+export function Ayuda({ texto }: { texto: string }) {
+  return (
+    <span className="ayuda" tabIndex={0} aria-label={texto}>
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M6.2 6.3a1.9 1.9 0 1 1 2.6 1.75c-.5.2-.8.6-.8 1.1v.35" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        <circle cx="8" cy="11.3" r=".9" fill="currentColor" />
+      </svg>
+      <span className="burbuja" role="tooltip">{texto}</span>
+    </span>
+  )
+}
+
 export function Titulo({ texto, ayuda }: { texto: string; ayuda?: string }) {
   return (
-    <h3 title={ayuda} style={{ cursor: ayuda ? 'help' : undefined }}>
+    <h3>
       {texto}
+      {ayuda && <Ayuda texto={ayuda} />}
     </h3>
   )
 }
