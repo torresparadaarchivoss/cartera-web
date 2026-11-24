@@ -27,11 +27,15 @@ export default function Promesas({ corte, filtros }: Props) {
 
   // Cada consulta va por separado: si la tendencia tarda demasiado, tarjetas y tabla siguen visibles.
   const [errorSerie, setErrorSerie] = useState<string | null>(null)
+  const [pagado, setPagado] = useState<number | null>(null)
 
   useEffect(() => {
     let vigente = true
     datos.promesasResumen(corte, filtros)
       .then((r) => vigente && setResumen(r))
+      .catch((e: Error) => vigente && setError(e.message))
+    datos.pagadoPeriodo(corte, filtros)
+      .then((p) => vigente && setPagado(p))
       .catch((e: Error) => vigente && setError(e.message))
     datos.promesasTabla(corte, MEDIDAS[medida], filtros)
       .then((t) => vigente && setTabla(t))
@@ -113,7 +117,9 @@ export default function Promesas({ corte, filtros }: Props) {
           {kpi('Vigentes', 'Promesas vigentes', 'info')}
           {kpi('Vencidas', 'Promesas vencidas')}
           {kpi('Promesado del mes', 'Promesado del mes')}
-          <Kpi etiqueta="Monto pagado" valor="—" detalle="pendiente de pagos" tono="bueno" />
+          <Kpi etiqueta="Monto pagado" valor={dinero(pagado)}
+            detalle={`${pct(pagado !== null && resumen.Vencidas.monto ? pagado / resumen.Vencidas.monto : null)} de las vencidas`}
+            tono="bueno" />
         </FilaKpi>
       )}
 

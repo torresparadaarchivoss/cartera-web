@@ -90,6 +90,23 @@ COLUMNAS_GESTION = ["gestiones_dia", "contacto_dia", "rpc_dia", "promesa_dia", "
                     "gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum",
                     "monto_promesa_acum"]
 COLUMNAS_MORA = ["bucket_inicial"]  # nulo = sin referencia (JUR o sin cierre de loantape)
+COLUMNAS_PAGO = ["monto_pagado_dia", "monto_pagado_acum"]
+
+# Pagos reales de clientes (database/pagos_queries.py): última foto del mes que contiene pagos.
+SQL_PAGOS = """
+WITH P AS (
+    SELECT tipo_doc, numero_doc, fecha, pago, clasi_comprob_nombre, numero, f_reporte
+    FROM CHIRICO.dbo.th_chirico_diario_regional
+    WHERE pais = 'el salvador' AND clasi_comprob_origen = 'Clientes'
+      AND fecha >= ? AND fecha < ?
+)
+SELECT
+      REPLACE(CONCAT(LTRIM(RTRIM(tipo_doc)), '_', LTRIM(RTRIM(numero_doc))), '_', ' ') AS credito
+    , CAST(fecha AS date)                    AS fecha
+    , CAST(ISNULL(pago, 0) AS FLOAT)         AS pago
+FROM P
+WHERE f_reporte = (SELECT MAX(f_reporte) FROM P)
+"""
 
 
 def bucket(dias) -> int | None:
@@ -221,13 +238,17 @@ COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "sal
                    "tipo_credito", "tipo_legal", "tipo_cartera", "fila"]
 
 
-def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame) -> None:
+COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"]
+
+
+def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame,
+                    pagos: pd.DataFrame) -> None:
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
     if not url:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
     with psycopg.connect(url, autocommit=False) as con:
         with con.cursor() as cur:
-            todas = COLUMNAS + COLUMNAS_GESTION + COLUMNAS_MORA
+            todas = COLUMNAS + COLUMNAS_GESTION + COLUMNAS_MORA + COLUMNAS_PAGO
             cur.execute("create temp table stg_cobranza (like public.cobranza_diaria) on commit drop")
             cur.execute("alter table stg_cobranza drop column id, drop column cargado_en")
             with cur.copy(f"copy stg_cobranza ({', '.join(todas)}) from stdin") as cp:
@@ -245,6 +266,12 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, esta
             cur.execute("delete from public.promesa")
             with cur.copy("copy public.promesa (credito, fecha_gestion, fecha_promesa, monto, del_mes) from stdin") as cp:
                 for fila in promesas.itertuples(index=False):
+                    cp.write_row([_valor_sql(v) for v in fila])
+            # Pagos del mes: se reemplazan completos.
+            cur.execute("delete from public.pago")
+            with cur.copy(f"copy public.pago ({', '.join(COLUMNAS_PAGO_TABLA)}) from stdin") as cp:
+                solo_fecha = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.date)
+                for fila in solo_fecha[COLUMNAS_PAGO_TABLA].itertuples(index=False):
                     cp.write_row([_valor_sql(v) for v in fila])
             # Estado de promesas por día y crédito: se reemplaza completo.
             cur.execute("delete from public.promesa_dia")
@@ -288,11 +315,21 @@ def main() -> None:
         return
     if df.empty:
         sys.exit("Nada que cargar; no se borró nada en Supabase.")
+    with conexion_origen() as con:
+        pagos_raw = pd.read_sql_query(SQL_PAGOS, con, params=[ini, fin])
+    pagos_raw["fecha"] = pd.to_datetime(pagos_raw["fecha"]).dt.normalize()
+    pagos_raw["pago"] = pd.to_numeric(pagos_raw["pago"], errors="coerce").fillna(0.0)
+    pagos_enr = gc.pagos_enriquecidos(pagos_raw, df)
+    acu = gc.pagos_acumulados(pagos_enr, df)
+    df = df.merge(acu, on=["credito", "f_reporte"], how="left", validate="one_to_one")
+    for c in COLUMNAS_PAGO:
+        df[c] = df[c].fillna(0.0).astype("float64")
+    print(f"Pagos del mes: {len(pagos_enr):,} filas, ${pagos_enr['pago'].sum():,.2f}.")
     promesas = leer_promesas(ini, fin, df)
     print(f"Promesas: {len(promesas):,} filas (mes y mes anterior).")
     estado = gc.estado_diario(df, promesas)
     print(f"Estado de promesas por día: {len(estado):,} filas.")
-    cargar_supabase(df, ini, promesas, estado)
+    cargar_supabase(df, ini, promesas, estado, pagos_enr)
 
 
 if __name__ == "__main__":

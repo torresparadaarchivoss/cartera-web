@@ -33,6 +33,7 @@ interface Fila {
   gestionadas: number
   rpc: number
   monto_prometido: number
+  monto_pagado: number
   cobertura: number | null
   tasa_rpc: number | null
 }
@@ -59,6 +60,7 @@ function conIndicadores(filas: FilaGrupo[], flujo: FilaFlujoGrupo[]): Fila[] {
       gestionadas,
       rpc,
       monto_prometido: fl?.monto_prometido ?? 0,
+      monto_pagado: fl?.monto_pagado ?? 0,
       cobertura: cuentasMes ? gestionadas / cuentasMes : null,
       tasa_rpc: gestionadas ? rpc / gestionadas : null,
     }
@@ -123,6 +125,7 @@ export default function Cartera() {
       cobertura: cuentasMes ? gest / cuentasMes : null,
       tasa_rpc: gest ? rpc / gest : null,
       monto_prometido: tabla.reduce((a, f) => a + f.monto_prometido, 0),
+      monto_pagado: tabla.reduce((a, f) => a + f.monto_pagado, 0),
       porcentaje: saldo ? 1 : null,
       indice: saldo ? mora90 / saldo : null,
     } as Fila
@@ -204,13 +207,13 @@ export default function Cartera() {
           { etiqueta: 'Cobertura de gestión', formato: (x) => pct(x) },
           { etiqueta: 'Tasa RPC', formato: (x) => pct(x) },
           { etiqueta: 'Monto prometido', formato: (x) => dinero(x) },
-          { etiqueta: 'Monto pagado', formato: () => '—' },
+          { etiqueta: 'Monto pagado', formato: (x) => dinero(x) },
         ]}
         filas={tabla.map((f) => ({
           etiqueta: f.grupo,
-          valores: [f.cuentas, f.saldo, f.porcentaje, f.cuentas_mora, f.indice, f.cobertura, f.tasa_rpc, f.monto_prometido, null],
+          valores: [f.cuentas, f.saldo, f.porcentaje, f.cuentas_mora, f.indice, f.cobertura, f.tasa_rpc, f.monto_prometido, f.monto_pagado],
         }))}
-        total={{ etiqueta: total.grupo, valores: [total.cuentas, total.saldo, total.porcentaje, total.cuentas_mora, total.indice, total.cobertura, total.tasa_rpc, total.monto_prometido, null] }}
+        total={{ etiqueta: total.grupo, valores: [total.cuentas, total.saldo, total.porcentaje, total.cuentas_mora, total.indice, total.cobertura, total.tasa_rpc, total.monto_prometido, total.monto_pagado] }}
       />
 
       <Grafico

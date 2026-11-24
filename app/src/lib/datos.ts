@@ -83,6 +83,11 @@ export interface FilaFlujoGrupo {
   gestionadas: number
   rpc: number
   monto_prometido: number
+  monto_pagado: number
+}
+
+export async function pagadoPeriodo(fecha: string, f: Filtros): Promise<number> {
+  return lanzar(await supabase.rpc('cartera_pagado_periodo', { p_fecha: fecha, ...args(f) }))
 }
 
 export async function flujoPorDimension(fecha: string, dim: Dimension, f: Filtros): Promise<FilaFlujoGrupo[]> {

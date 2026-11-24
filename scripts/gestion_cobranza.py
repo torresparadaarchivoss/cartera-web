@@ -116,6 +116,43 @@ def promesas_filas(gestiones_mes: pd.DataFrame, gestiones_previas: pd.DataFrame,
     return out.sort_values("fecha_gestion", kind="stable").reset_index(drop=True)
 
 
+def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFrame:
+    """Pagos con los atributos de cartera del día del pago (réplica de calculations.enriquecer_pagos).
+    Si ese día no hay registro del crédito, se toma el anterior más cercano y, si no hay, el siguiente."""
+    cols = ["supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"]
+    p = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.normalize()).copy()
+    c = cartera.assign(fecha=pd.to_datetime(cartera["f_reporte"]).dt.normalize())
+    c = c[["credito", "fecha"] + cols].sort_values(["fecha"], kind="stable")
+    out = p.merge(c, on=["credito", "fecha"], how="left", validate="many_to_one")
+    falta = out["supervisor"].isna()
+    if falta.any():
+        x = out.loc[falta, ["credito", "fecha"]].reset_index().sort_values("fecha")
+        for direccion in ("backward", "forward"):
+            m = pd.merge_asof(x, c.assign(_hay=True), on="fecha", by="credito", direction=direccion).set_index("index")
+            m = m[m["_hay"].eq(True) & out.loc[m.index, "supervisor"].isna()]
+            out.loc[m.index, cols] = m[cols].to_numpy()
+    for col in ("supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"):
+        out[col] = out[col].fillna("").astype(str)
+    return out.reset_index(drop=True)
+
+
+def pagos_acumulados(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFrame:
+    """Por fila de cartera (credito, f_reporte): monto pagado ese día y acumulado del mes hasta esa fecha."""
+    base = cartera[["credito", "f_reporte"]].assign(f_reporte=lambda d: pd.to_datetime(d["f_reporte"]))
+    if pagos.empty:
+        return base.assign(monto_pagado_dia=0.0, monto_pagado_acum=0.0)
+    dia = pagos.groupby(["credito", "fecha"], as_index=False)["pago"].sum().rename(columns={"pago": "monto_pagado_dia"})
+    dia = dia.sort_values(["credito", "fecha"])
+    dia["monto_pagado_acum"] = dia.groupby("credito")["monto_pagado_dia"].cumsum()
+    out = base.merge(dia[["credito", "fecha", "monto_pagado_dia"]].rename(columns={"fecha": "f_reporte"}),
+                     on=["credito", "f_reporte"], how="left")
+    out["monto_pagado_dia"] = out["monto_pagado_dia"].fillna(0.0)
+    out = pd.merge_asof(out.sort_values("f_reporte"), dia[["credito", "fecha", "monto_pagado_acum"]].sort_values("fecha"),
+                        left_on="f_reporte", right_on="fecha", by="credito", direction="backward").drop(columns="fecha")
+    out["monto_pagado_acum"] = out["monto_pagado_acum"].fillna(0.0)
+    return out.sort_values(["credito", "f_reporte"]).reset_index(drop=True)
+
+
 ESTADOS = ("Vencidas", "Vigentes", "Promesado del mes", "Del día")
 
 
