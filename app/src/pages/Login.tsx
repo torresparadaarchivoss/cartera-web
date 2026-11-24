@@ -18,7 +18,7 @@ export default function Login() {
     setEnviando(true)
     const { error: err } = await supabase.auth.signInWithPassword({ email: correo, password: clave })
     setEnviando(false)
-    if (err) setError('Correo o contraseña incorrectos.')
+    if (err) setError(`No se pudo ingresar: ${err.message}`)
   }
 
   return (
