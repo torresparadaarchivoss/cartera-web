@@ -28,6 +28,8 @@ import pandas as pd
 import psycopg
 import pyodbc
 
+import gestion_cobranza as gc
+
 # Misma consulta de cartera que database/cartera_queries.py del Streamlit (PAIS = 'el salvador').
 # Los parámetros :ini y :fin se cambian por ? (pyodbc) en el mismo orden.
 SQL_CARTERA = """
@@ -46,9 +48,37 @@ WHERE C.PAIS = 'el salvador'
   AND C.F_REPORTE >= ? AND C.F_REPORTE < ?
 """
 
+# Gestiones del mes (database/cartera_queries.py SQL_GESTIONES) y catálogo de códigos (SQL_CODIGOS).
+SQL_GESTIONES = """
+SELECT
+      REPLACE(LTRIM(RTRIM(A.credito)), '_', ' ')  AS credito
+    , A.fecha_actividad
+    , LOWER(LTRIM(RTRIM(A.usuario)))              AS usuario
+    , A.codigo_accion
+    , A.codigo_resultado
+    , A.status_promesa_pago
+    , A.fecha_promesa
+    , A.estado_promesa
+    , CAST(ISNULL(A.monto_promesa, 0) AS FLOAT)   AS monto_promesa
+FROM dbo.th_mccollect_gestiones_diarias_regional A
+WHERE A.pais = 'El Salvador'
+  AND A.fecha_actividad >= ? AND A.fecha_actividad < ?
+"""
+
+SQL_CODIGOS = """
+SELECT UPPER(REPLACE(id_concatenado, ' ', ''))  AS codigo
+     , LTRIM(RTRIM(tipo_cartera))                AS tipo_cartera
+     , ISNULL(gestionada, 0) AS gestionada, ISNULL(contacto, 0) AS contacto
+     , ISNULL(rpc, 0) AS rpc, ISNULL(promesa, 0) AS promesa
+FROM dbo.t_mccollect_codigos_gestiones
+"""
+
 LIMITES_BUCKET = (0, 30, 60, 90, 120, 150)  # igual que config.py del Streamlit
 COLUMNAS = ["credito", "f_reporte", "saldo", "saldo_vencido", "dias_mora", "bucket_actual",
             "supervisor", "gestor", "tipo_credito", "tipo_legal", "tipo_cartera"]
+COLUMNAS_GESTION = ["gestiones_dia", "contacto_dia", "rpc_dia", "promesa_dia", "monto_promesa_dia",
+                    "gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum",
+                    "monto_promesa_acum"]
 
 
 def bucket(dias) -> int | None:
@@ -95,6 +125,24 @@ def leer_cartera(ini: dt.date, fin: dt.date) -> pd.DataFrame:
     return df[COLUMNAS]
 
 
+def leer_gestion(ini: dt.date, fin: dt.date, cartera: pd.DataFrame) -> pd.DataFrame:
+    """Gestiones del mes por crédito y día (marcas del catálogo, del día y acumulados). Réplica verificada en
+    gestion_cobranza.py contra el Streamlit."""
+    with conexion_origen() as con:
+        ge = pd.read_sql_query(SQL_GESTIONES, con, params=[ini, fin])
+        cat = pd.read_sql_query(SQL_CODIGOS, con)
+    ge["fecha_actividad"] = pd.to_datetime(ge["fecha_actividad"], errors="coerce")
+    ge["usuario"] = ge["usuario"].fillna("").astype(str)
+    cat["tipo_cartera"] = cat["tipo_cartera"].fillna("").astype(str)
+    for c in ("gestionada", "contacto", "rpc", "promesa"):
+        cat[c] = pd.to_numeric(cat[c], errors="coerce").fillna(0).astype(int)
+    cart = cartera.assign(f_reporte=pd.to_datetime(cartera["f_reporte"]))
+    g = gc.preparar(gc.marcar(ge, cat, cart))
+    out = gc.por_credito_dia(cart, g)
+    out["f_reporte"] = out["f_reporte"].dt.date
+    return out[["credito", "f_reporte"] + COLUMNAS_GESTION]
+
+
 def _valor_sql(v):
     """Convierte un valor de pandas/numpy a algo que psycopg acepte; nulos → None."""
     if v is None or v is pd.NA or v is pd.NaT:
@@ -124,24 +172,18 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date) -> None:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
     with psycopg.connect(url, autocommit=False) as con:
         with con.cursor() as cur:
+            todas = COLUMNAS + COLUMNAS_GESTION
             cur.execute("create temp table stg_cobranza (like public.cobranza_diaria) on commit drop")
             cur.execute("alter table stg_cobranza drop column id, drop column cargado_en")
-            with cur.copy(f"copy stg_cobranza ({', '.join(COLUMNAS)}) from stdin") as cp:
-                for fila in df.itertuples(index=False):
+            with cur.copy(f"copy stg_cobranza ({', '.join(todas)}) from stdin") as cp:
+                for fila in df[todas].itertuples(index=False):
                     cp.write_row([_valor_sql(v) for v in fila])
+            cambios = ",\n                  ".join(f"{c} = excluded.{c}" for c in todas if c not in ("credito", "f_reporte"))
             cur.execute(f"""
-                insert into public.cobranza_diaria ({', '.join(COLUMNAS)})
-                select {', '.join(COLUMNAS)} from stg_cobranza
+                insert into public.cobranza_diaria ({', '.join(todas)})
+                select {', '.join(todas)} from stg_cobranza
                 on conflict (credito, f_reporte) do update set
-                  saldo = excluded.saldo,
-                  saldo_vencido = excluded.saldo_vencido,
-                  dias_mora = excluded.dias_mora,
-                  bucket_actual = excluded.bucket_actual,
-                  supervisor = excluded.supervisor,
-                  gestor = excluded.gestor,
-                  tipo_credito = excluded.tipo_credito,
-                  tipo_legal = excluded.tipo_legal,
-                  tipo_cartera = excluded.tipo_cartera,
+                  {cambios},
                   cargado_en = now()
             """)
             # Ventana de 1 mes: se borra lo anterior al mes cargado.
@@ -164,6 +206,13 @@ def main() -> None:
     print(f"Leyendo cartera de {ini} a {fin - dt.timedelta(days=1)} desde MCCOLLECT…")
     df = leer_cartera(ini, fin)
     resumen(df, ini)
+    if not df.empty:
+        print("Leyendo gestiones del mes…")
+        gest = leer_gestion(ini, fin, df)
+        df = df.merge(gest, on=["credito", "f_reporte"], how="left", validate="one_to_one")
+        for c in COLUMNAS_GESTION:
+            df[c] = df[c].fillna(0).astype("int64" if c not in ("monto_promesa_dia", "monto_promesa_acum") else "float64")
+        print(f"Gestiones del mes: {int(df['gestiones_dia'].sum()):,} en días con gestión.")
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
         return
