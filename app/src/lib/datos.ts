@@ -86,8 +86,8 @@ export interface FilaFlujoGrupo {
   monto_pagado: number
 }
 
-export async function pagadoPeriodo(fecha: string, f: Filtros): Promise<number> {
-  return lanzar(await supabase.rpc('cartera_pagado_periodo', { p_fecha: fecha, ...args(f) }))
+export async function pagadoPeriodo(fecha: string, f: Filtros, s: FiltrosSeccion): Promise<number> {
+  return lanzar(await supabase.rpc('cartera_pagado_periodo', { p_fecha: fecha, ...args(f), ...argsSeccion(s) }))
 }
 
 export async function flujoPorDimension(fecha: string, dim: Dimension, f: Filtros): Promise<FilaFlujoGrupo[]> {
@@ -117,8 +117,23 @@ export interface PromesasResumen {
   'Del día': PromesasEstado
 }
 
-export async function promesasResumen(fecha: string, f: Filtros): Promise<PromesasResumen> {
-  return lanzar(await supabase.rpc('cartera_promesas', { p_fecha: fecha, ...args(f) }))
+// Filtros propios de la sección Promesas (se suman a los globales).
+export interface FiltrosSeccion {
+  supervisor: string[]
+  gestor: string[]
+  top: 'Todas' | 'Solo Cuentas Top' | 'Sin Cuentas Top'
+}
+
+function argsSeccion(s: FiltrosSeccion) {
+  return { p_sec_supervisor: s.supervisor, p_sec_gestor: s.gestor, p_top: s.top }
+}
+
+export async function promesaGestores(): Promise<string[]> {
+  return lanzar(await supabase.rpc('promesa_gestores'))
+}
+
+export async function promesasResumen(fecha: string, f: Filtros, s: FiltrosSeccion): Promise<PromesasResumen> {
+  return lanzar(await supabase.rpc('cartera_promesas', { p_fecha: fecha, ...args(f), ...argsSeccion(s) }))
 }
 
 export interface FilaPromesaTabla {
@@ -128,8 +143,8 @@ export interface FilaPromesaTabla {
   promesado_mes: number
 }
 
-export async function promesasTabla(fecha: string, medida: 'monto' | 'saldo', f: Filtros): Promise<FilaPromesaTabla[]> {
-  return lanzar(await supabase.rpc('cartera_promesas_tabla', { p_fecha: fecha, p_medida: medida, ...args(f) }))
+export async function promesasTabla(fecha: string, medida: 'monto' | 'saldo', f: Filtros, s: FiltrosSeccion): Promise<FilaPromesaTabla[]> {
+  return lanzar(await supabase.rpc('cartera_promesas_tabla', { p_fecha: fecha, p_medida: medida, ...args(f), ...argsSeccion(s) }))
 }
 
 export interface PuntoPromesaDia {
@@ -139,8 +154,8 @@ export interface PuntoPromesaDia {
   promesas_dia: number
 }
 
-export async function promesasSerie(fecha: string, f: Filtros): Promise<PuntoPromesaDia[]> {
-  return lanzar(await supabase.rpc('cartera_promesas_serie', { p_fecha: fecha, ...args(f) }))
+export async function promesasSerie(fecha: string, f: Filtros, s: FiltrosSeccion): Promise<PuntoPromesaDia[]> {
+  return lanzar(await supabase.rpc('cartera_promesas_serie', { p_fecha: fecha, ...args(f), ...argsSeccion(s) }))
 }
 
 export interface Cohorte {

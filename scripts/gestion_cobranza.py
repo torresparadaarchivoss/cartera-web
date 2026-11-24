@@ -116,10 +116,49 @@ def promesas_filas(gestiones_mes: pd.DataFrame, gestiones_previas: pd.DataFrame,
     return out.sort_values("fecha_gestion", kind="stable").reset_index(drop=True)
 
 
+SIN_ASIGNAR = frozenset({"", "sin asignar"})
+FRACCION_CUENTAS_TOP = 0.60
+SIN_MORA = "Sin mora"
+
+
+def _bucket_txt(dias: pd.Series) -> pd.Series:
+    """Bucket de mora como texto (0..6 o «Sin mora»), igual que services/calculations.bucket_mora."""
+    d = pd.to_numeric(dias, errors="coerce")
+    lim = [0, 30, 60, 90, 120, 150]
+    out = pd.Series(len(lim), index=d.index, dtype="int64")
+    for i in range(len(lim) - 1, -1, -1):
+        out = out.where(~(d <= lim[i]), i)
+    return out.where(d.notna()).astype("string").fillna(SIN_MORA)
+
+
+def marcar_top(cartera: pd.DataFrame) -> pd.Series:
+    """Cuentas Top (services/cuentas_top.py): por fecha × bucket, las de mayor saldo que suman el 60 % del saldo."""
+    out = pd.Series(False, index=cartera.index)
+    if cartera.empty:
+        return out
+    saldo = pd.to_numeric(cartera["saldo"], errors="coerce").fillna(0.0)
+    x = pd.DataFrame({"f": cartera["f_reporte"], "credito": cartera["credito"], "s": saldo,
+                      "b": _bucket_txt(cartera["dias_mora"])})[saldo > 0]
+    x = x.sort_values(["f", "b", "s", "credito"], ascending=[True, True, False, True], kind="stable")
+    grupo = x.groupby(["f", "b"], sort=False)["s"]
+    previo = grupo.cumsum() - x["s"]
+    out.loc[x.index] = (previo < FRACCION_CUENTAS_TOP * grupo.transform("sum")).to_numpy()
+    return out
+
+
+def ultimo_gestor(cartera: pd.DataFrame) -> pd.Series:
+    """Por crédito: el último gestor asignado válido del mes (services/calculations.py ultimo_gestor)."""
+    if cartera.empty:
+        return pd.Series(dtype=str)
+    g = cartera["gestor"].fillna("").astype(str)
+    c = cartera.loc[~g.str.strip().str.lower().isin(SIN_ASIGNAR), ["credito", "f_reporte", "gestor"]]
+    return c.sort_values("f_reporte", kind="stable").groupby("credito")["gestor"].last()
+
+
 def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFrame:
     """Pagos con los atributos de cartera del día del pago (réplica de calculations.enriquecer_pagos).
     Si ese día no hay registro del crédito, se toma el anterior más cercano y, si no hay, el siguiente."""
-    cols = ["supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"]
+    cols = ["supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top"]
     p = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.normalize().astype("datetime64[ns]")).copy()
     c = cartera.assign(fecha=pd.to_datetime(cartera["f_reporte"]).dt.normalize().astype("datetime64[ns]"))
     c = c[["credito", "fecha"] + cols].sort_values(["fecha"], kind="stable")
@@ -131,8 +170,9 @@ def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFra
             m = pd.merge_asof(x, c.assign(_hay=True), on="fecha", by="credito", direction=direccion).set_index("index")
             m = m[m["_hay"].eq(True) & out.loc[m.index, "supervisor"].isna()]
             out.loc[m.index, cols] = m[cols].to_numpy()
-    for col in ("supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"):
+    for col in ("supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor"):
         out[col] = out[col].fillna("").astype(str)
+    out["top"] = out["top"].fillna(False).astype(bool)
     return out.reset_index(drop=True)
 
 
@@ -178,10 +218,12 @@ def estado_diario(cartera: pd.DataFrame, promesas: pd.DataFrame) -> pd.DataFrame
                 np.where(pd.isna(ini), "Sin referencia",
                 np.where(ini == 0, np.where(np.nan_to_num(bucket_hoy, nan=0) >= 1, "0 (desmejora)", "0 (al día)"),
                          pd.Series(ini).astype("Int64").astype(str).to_numpy())))
+        gestor = c["gestor_mes"].where(c["gestor_mes"].notna(), c["gestor"]).fillna("").astype(str)
+        top = c["top"].fillna(False).astype(bool).to_numpy() & en_corte  # como _cuentas: Top solo en la foto del día
         base = pd.DataFrame({"credito": c["credito"].to_numpy(), "en_corte": en_corte, "saldo_corte": saldo,
                              "supervisor": c["supervisor"].to_numpy(), "tipo_credito": c["tipo_credito"].to_numpy(),
                              "tipo_legal": c["tipo_legal"].to_numpy(), "tipo_cartera": c["tipo_cartera"].to_numpy(),
-                             "fila": fila})
+                             "fila": fila, "gestor": gestor.to_numpy(), "top": top})
         g = promesas[promesas["fecha_gestion"].dt.normalize() <= t] if not promesas.empty else promesas
         if g.empty:
             continue
@@ -206,7 +248,7 @@ def estado_diario(cartera: pd.DataFrame, promesas: pd.DataFrame) -> pd.DataFrame
             m = m.assign(f_reporte=t, estado=estado)
             partes.append(m)
     cols = ["f_reporte", "credito", "estado", "monto", "n_promesas", "saldo_corte", "supervisor", "tipo_credito",
-            "tipo_legal", "tipo_cartera", "fila"]
+            "tipo_legal", "tipo_cartera", "fila", "gestor", "top"]
     if not partes:
         return pd.DataFrame(columns=cols)
     return pd.concat(partes, ignore_index=True)[cols]

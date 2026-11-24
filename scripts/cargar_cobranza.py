@@ -235,10 +235,10 @@ def resumen(df: pd.DataFrame, ini: dt.date) -> None:
 
 
 COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "saldo_corte", "supervisor",
-                   "tipo_credito", "tipo_legal", "tipo_cartera", "fila"]
+                   "tipo_credito", "tipo_legal", "tipo_cartera", "fila", "gestor", "top"]
 
 
-COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"]
+COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top"]
 
 
 def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame,
@@ -319,7 +319,10 @@ def main() -> None:
         pagos_raw = pd.read_sql_query(SQL_PAGOS, con, params=[ini, fin])
     pagos_raw["fecha"] = pd.to_datetime(pagos_raw["fecha"]).dt.normalize()
     pagos_raw["pago"] = pd.to_numeric(pagos_raw["pago"], errors="coerce").fillna(0.0)
+    df["top"] = gc.marcar_top(df)
+    df["gestor_mes"] = df["credito"].map(gc.ultimo_gestor(df))
     pagos_enr = gc.pagos_enriquecidos(pagos_raw, df)
+    pagos_enr["gestor"] = pagos_enr["credito"].map(gc.ultimo_gestor(df)).where(lambda x: x.notna(), pagos_enr["gestor"])
     acu = gc.pagos_acumulados(pagos_enr, df)
     acu = acu.assign(f_reporte=pd.to_datetime(acu["f_reporte"]).dt.date)
     df = df.merge(acu, on=["credito", "f_reporte"], how="left", validate="one_to_one")

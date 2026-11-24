@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Data } from 'plotly.js'
 import * as datos from '../lib/datos'
-import type { Filtros, PromesasResumen, FilaPromesaTabla, PuntoPromesaDia } from '../lib/datos'
+import type { Filtros, FiltrosSeccion, PromesasResumen, FilaPromesaTabla, PuntoPromesaDia } from '../lib/datos'
+import { useDatos } from '../lib/contexto'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Tabla, Titulo } from './Bloques'
 
-// Sección Promesas de Resumen gerencial (services/promesas.py). Pendiente: filtros propios de la sección
-// (supervisor, usuario asignado, Cuentas Top) y monto pagado (CHIRICO).
+// Sección Promesas de Resumen gerencial (services/promesas.py): filtros propios (supervisor, usuario asignado y
+// Cuentas Top) que se suman a los globales.
 
 const ORDEN_FILAS = ['0 (desmejora)', '1', '2', '3', '4', '5', '6', 'Legal', 'Sin referencia']
 
@@ -28,33 +29,40 @@ export default function Promesas({ corte, filtros }: Props) {
   // Cada consulta va por separado: si la tendencia tarda demasiado, tarjetas y tabla siguen visibles.
   const [errorSerie, setErrorSerie] = useState<string | null>(null)
   const [pagado, setPagado] = useState<number | null>(null)
+  const [sec, setSec] = useState<FiltrosSeccion>({ supervisor: [], gestor: [], top: 'Todas' })
+  const [gestores, setGestores] = useState<string[]>([])
+  const { opciones } = useDatos()
+
+  useEffect(() => {
+    datos.promesaGestores().then(setGestores).catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     let vigente = true
-    datos.promesasResumen(corte, filtros)
+    datos.promesasResumen(corte, filtros, sec)
       .then((r) => vigente && setResumen(r))
       .catch((e: Error) => vigente && setError(e.message))
-    datos.pagadoPeriodo(corte, filtros)
+    datos.pagadoPeriodo(corte, filtros, sec)
       .then((p) => vigente && setPagado(p))
       .catch((e: Error) => vigente && setError(e.message))
-    datos.promesasTabla(corte, MEDIDAS[medida], filtros)
+    datos.promesasTabla(corte, MEDIDAS[medida], filtros, sec)
       .then((t) => vigente && setTabla(t))
       .catch((e: Error) => vigente && setError(e.message))
     return () => {
       vigente = false
     }
-  }, [corte, filtros, medida])
+  }, [corte, filtros, medida, sec])
 
   useEffect(() => {
     let vigente = true
     setErrorSerie(null)
-    datos.promesasSerie(corte, filtros)
+    datos.promesasSerie(corte, filtros, sec)
       .then((s) => vigente && setSerie(s))
       .catch((e: Error) => vigente && setErrorSerie(e.message))
     return () => {
       vigente = false
     }
-  }, [corte, filtros])
+  }, [corte, filtros, sec])
 
   const filas = useMemo(() => {
     if (!tabla) return []
@@ -102,7 +110,30 @@ export default function Promesas({ corte, filtros }: Props) {
     <>
       <Titulo texto="Promesas"
         ayuda="En vivo: la foto de cartera del día se toma antes de que empiece la gestión, así que aquí se suman también las promesas registradas durante el día. Vencidas: promesas del mes con fecha de pago anterior al corte. Vigentes: última promesa de cada crédito con fecha de pago desde el corte. Monto pagado: pendiente de esta versión." />
-      <div style={{ display: 'flex', gap: 12, alignItems: 'end', marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', marginBottom: 8 }}>
+        <label style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+          Supervisor (sección)
+          <select multiple value={sec.supervisor} style={{ display: 'block', minWidth: 200, minHeight: 80 }}
+            onChange={(e) => setSec({ ...sec, supervisor: Array.from(e.target.selectedOptions, (o) => o.value) })}>
+            {(opciones?.supervisor ?? []).map((v) => <option key={v} value={v}>{v || '(sin dato)'}</option>)}
+          </select>
+        </label>
+        <label style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+          Usuario asignado (sección)
+          <select multiple value={sec.gestor} style={{ display: 'block', minWidth: 200, minHeight: 80 }}
+            onChange={(e) => setSec({ ...sec, gestor: Array.from(e.target.selectedOptions, (o) => o.value) })}>
+            {gestores.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </label>
+        <label style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+          Cuentas Top
+          <select value={sec.top} style={{ display: 'block', minWidth: 180 }}
+            onChange={(e) => setSec({ ...sec, top: e.target.value as FiltrosSeccion['top'] })}>
+            <option value="Todas">Todas</option>
+            <option value="Solo Cuentas Top">Solo Cuentas Top</option>
+            <option value="Sin Cuentas Top">Sin Cuentas Top</option>
+          </select>
+        </label>
         <label style={{ fontWeight: 600, fontSize: '0.85rem' }}>
           Valores en
           <select value={medida} onChange={(e) => setMedida(e.target.value as Medida)} style={{ display: 'block', minWidth: 220 }}>
