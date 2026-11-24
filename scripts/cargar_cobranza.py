@@ -321,6 +321,7 @@ def main() -> None:
     pagos_raw["pago"] = pd.to_numeric(pagos_raw["pago"], errors="coerce").fillna(0.0)
     pagos_enr = gc.pagos_enriquecidos(pagos_raw, df)
     acu = gc.pagos_acumulados(pagos_enr, df)
+    acu = acu.assign(f_reporte=pd.to_datetime(acu["f_reporte"]).dt.date)
     df = df.merge(acu, on=["credito", "f_reporte"], how="left", validate="one_to_one")
     for c in COLUMNAS_PAGO:
         df[c] = df[c].fillna(0.0).astype("float64")

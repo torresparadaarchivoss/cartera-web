@@ -70,7 +70,7 @@ def preparar(g: pd.DataFrame) -> pd.DataFrame:
 
 
 def _gestion_diaria(g: pd.DataFrame) -> pd.DataFrame:
-    g = g.assign(fecha=g["fecha_actividad"].dt.normalize())
+    g = g.assign(fecha=g["fecha_actividad"].dt.normalize().astype("datetime64[ns]"))
     out = g.groupby(["credito", "fecha"], as_index=False).agg(
         gestiones_dia=("fecha_actividad", "size"),
         gestionada_dia=("gestionada", "max"),
@@ -120,8 +120,8 @@ def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFra
     """Pagos con los atributos de cartera del día del pago (réplica de calculations.enriquecer_pagos).
     Si ese día no hay registro del crédito, se toma el anterior más cercano y, si no hay, el siguiente."""
     cols = ["supervisor", "tipo_credito", "tipo_legal", "tipo_cartera"]
-    p = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.normalize()).copy()
-    c = cartera.assign(fecha=pd.to_datetime(cartera["f_reporte"]).dt.normalize())
+    p = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.normalize().astype("datetime64[ns]")).copy()
+    c = cartera.assign(fecha=pd.to_datetime(cartera["f_reporte"]).dt.normalize().astype("datetime64[ns]"))
     c = c[["credito", "fecha"] + cols].sort_values(["fecha"], kind="stable")
     out = p.merge(c, on=["credito", "fecha"], how="left", validate="many_to_one")
     falta = out["supervisor"].isna()
@@ -138,11 +138,11 @@ def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFra
 
 def pagos_acumulados(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFrame:
     """Por fila de cartera (credito, f_reporte): monto pagado ese día y acumulado del mes hasta esa fecha."""
-    base = cartera[["credito", "f_reporte"]].assign(f_reporte=lambda d: pd.to_datetime(d["f_reporte"]))
+    base = cartera[["credito", "f_reporte"]].assign(f_reporte=lambda d: pd.to_datetime(d["f_reporte"]).astype("datetime64[ns]"))
     if pagos.empty:
         return base.assign(monto_pagado_dia=0.0, monto_pagado_acum=0.0)
     dia = pagos.groupby(["credito", "fecha"], as_index=False)["pago"].sum().rename(columns={"pago": "monto_pagado_dia"})
-    dia = dia.sort_values(["credito", "fecha"])
+    dia = dia.assign(fecha=dia["fecha"].astype("datetime64[ns]")).sort_values(["credito", "fecha"])
     dia["monto_pagado_acum"] = dia.groupby("credito")["monto_pagado_dia"].cumsum()
     out = base.merge(dia[["credito", "fecha", "monto_pagado_dia"]].rename(columns={"fecha": "f_reporte"}),
                      on=["credito", "f_reporte"], how="left")
@@ -216,6 +216,7 @@ def por_credito_dia(cartera: pd.DataFrame, gestiones: pd.DataFrame) -> pd.DataFr
     """Para cada fila (credito, f_reporte) de la cartera: gestiones del día y acumulados del mes hasta esa fecha.
     gestiones: ya marcadas y preparadas (marcar + preparar)."""
     base = cartera[["credito", "f_reporte"]].copy()
+    base["f_reporte"] = pd.to_datetime(base["f_reporte"]).dt.normalize().astype("datetime64[ns]")
     if gestiones.empty:
         for c in ["gestiones_dia", "contacto_dia", "rpc_dia", "promesa_dia", "monto_promesa_dia",
                   "gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum",
