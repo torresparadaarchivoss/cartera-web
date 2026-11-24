@@ -25,25 +25,32 @@ export default function Promesas({ corte, filtros }: Props) {
   const [serie, setSerie] = useState<PuntoPromesaDia[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Cada consulta va por separado: si la tendencia tarda demasiado, tarjetas y tabla siguen visibles.
+  const [errorSerie, setErrorSerie] = useState<string | null>(null)
+
   useEffect(() => {
     let vigente = true
-    Promise.all([
-      datos.promesasResumen(corte, filtros),
-      datos.promesasTabla(corte, MEDIDAS[medida], filtros),
-      datos.promesasSerie(corte, filtros),
-    ])
-      .then(([r, t, s]) => {
-        if (!vigente) return
-        setResumen(r)
-        setTabla(t)
-        setSerie(s)
-        setError(null)
-      })
+    datos.promesasResumen(corte, filtros)
+      .then((r) => vigente && setResumen(r))
+      .catch((e: Error) => vigente && setError(e.message))
+    datos.promesasTabla(corte, MEDIDAS[medida], filtros)
+      .then((t) => vigente && setTabla(t))
       .catch((e: Error) => vigente && setError(e.message))
     return () => {
       vigente = false
     }
   }, [corte, filtros, medida])
+
+  useEffect(() => {
+    let vigente = true
+    setErrorSerie(null)
+    datos.promesasSerie(corte, filtros)
+      .then((s) => vigente && setSerie(s))
+      .catch((e: Error) => vigente && setErrorSerie(e.message))
+    return () => {
+      vigente = false
+    }
+  }, [corte, filtros])
 
   const filas = useMemo(() => {
     if (!tabla) return []
@@ -51,7 +58,7 @@ export default function Promesas({ corte, filtros }: Props) {
   }, [tabla])
 
   if (error) return <div className="error-pantalla">No se pudieron cargar las promesas: {error}</div>
-  if (!resumen || !tabla || !serie) return <p className="vacio">Cargando promesas…</p>
+  if (!resumen || !tabla) return <p className="vacio">Cargando promesas…</p>
 
   const medidaTexto = medida.toLowerCase()
   const tot = (k: keyof FilaPromesaTabla) => filas.reduce((a, f) => a + (f[k] as number), 0)
@@ -70,16 +77,16 @@ export default function Promesas({ corte, filtros }: Props) {
   const ventaDia: Data[] = [
     {
       type: 'bar',
-      x: serie.map((p) => p.fecha),
-      y: serie.map((p) => p.promesas_dia),
+      x: (serie ?? []).map((p) => p.fecha),
+      y: (serie ?? []).map((p) => p.promesas_dia),
       name: 'Promesas del día',
       marker: { color: '#aeb6ec' },
     } as Data,
     {
       type: 'scatter',
       mode: 'lines+markers',
-      x: serie.map((p) => p.fecha),
-      y: serie.map((p) => (medida === 'Saldo del crédito' ? p.vig_saldo : p.vig_monto)),
+      x: (serie ?? []).map((p) => p.fecha),
+      y: (serie ?? []).map((p) => (medida === 'Saldo del crédito' ? p.vig_saldo : p.vig_monto)),
       name: `Vigentes (${medidaTexto})`,
       yaxis: 'y2',
       line: { color: '#202050', width: 2.2 },
@@ -122,16 +129,19 @@ export default function Promesas({ corte, filtros }: Props) {
         total={{ etiqueta: 'Total', valores: [totVenc, totVig, totPromesado ? totVig / totPromesado : null] }}
       />
 
-      <Grafico
-        titulo={`Promesas del día y vigentes al cierre · ${medidaTexto}`}
-        data={ventaDia}
-        layout={{
-          barmode: 'group',
-          yaxis: { title: { text: 'Promesas' }, rangemode: 'tozero' },
-          yaxis2: { overlaying: 'y', side: 'right', tickprefix: '$', tickformat: ',.0f', showgrid: false, rangemode: 'tozero' },
-        }}
-        alto={340}
-      />
+      {errorSerie && <div className="error-pantalla">La tendencia por día no se pudo cargar: {errorSerie}</div>}
+      {serie && (
+        <Grafico
+          titulo={`Promesas del día y vigentes al cierre · ${medidaTexto}`}
+          data={ventaDia}
+          layout={{
+            barmode: 'group',
+            yaxis: { title: { text: 'Promesas' }, rangemode: 'tozero' },
+            yaxis2: { overlaying: 'y', side: 'right', tickprefix: '$', tickformat: ',.0f', showgrid: false, rangemode: 'tozero' },
+          }}
+          alto={340}
+        />
+      )}
       <Nota texto="Barras: promesas registradas cada día. Línea: promesas vigentes al cierre del día. El día en curso no aparece hasta que cierra." />
     </>
   )
