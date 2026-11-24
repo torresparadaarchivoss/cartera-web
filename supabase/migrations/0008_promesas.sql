@@ -100,4 +100,5 @@ as $$
   ) a on a.estado = n.estado;
 $$;
 
+grant select on public.promesa to authenticated;
 grant execute on function public.cartera_promesas(date, text[], text[], text[]) to authenticated;

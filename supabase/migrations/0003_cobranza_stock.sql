@@ -179,6 +179,7 @@ as $$
   order by 1, 2;
 $$;
 
+grant select on public.cobranza_diaria to authenticated;
 revoke execute on function public.cartera_fechas() from anon;
 revoke execute on function public.cartera_opciones() from anon;
 revoke execute on function public.cartera_stock(date, text[], text[], text[]) from anon;
