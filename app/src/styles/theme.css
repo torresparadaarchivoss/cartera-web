@@ -1,23 +1,19 @@
-/* Única fuente de color y tipografía. Los componentes usan estas variables, no hex sueltos.
-   Paleta: skill marca-instacredit (núcleo verde + navy; acentos para gráficos). */
+/* Única fuente de color y tipografía. Mismos tokens que el tablero Streamlit (components/theme.py),
+   para que la versión web se vea igual. */
 :root {
-  --verde: #4b9d45;
-  --navy: #06255b;
+  --indigo: #202050;          /* texto principal, títulos */
+  --medio: #4f5bb8;           /* acento principal */
+  --claro: #aeb6ec;           /* series secundarias */
+  --fondo: #f6f7fb;
   --blanco: #ffffff;
-  --lima: #93bf02;
-  --cielo: #00a4e0;
-  --amarillo: #f2c20c;
-  --naranja: #f5821f;
-  --rojo: #ee232e;
+  --gris: #8a8fa8;
+  --linea: #e3e6f0;
+  --verde: #3fa04e;           /* positivo / mejora */
+  --rojo: #e25c52;            /* deterioro (coral) */
+  --ambar: #f4a63c;           /* alerta */
+  --verde-marca: #389848;
+  --lima: #88c038;
+  --naranja: #f89040;
 
-  --texto: #333740;
-  --gris: #5b6170;
-  --fondo: #f2f4f7;
-  --borde: #dfe3ea;
-
-  --fuente-titulo: 'Inter Tight', Arial, sans-serif;
-  --fuente-cuerpo: Arial, Helvetica, sans-serif;
-
-  --radio: 12px;
-  --margen-movil: 16px;
+  --fuente: 'Nunito Sans', 'Segoe UI', system-ui, sans-serif;
 }

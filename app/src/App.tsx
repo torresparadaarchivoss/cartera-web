@@ -1,10 +1,12 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { configuracionCompleta } from './lib/supabase'
+import { DatosProvider } from './lib/contexto'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Resumen from './pages/Resumen'
+import Cartera from './pages/Cartera'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -42,11 +44,14 @@ export default function App() {
           <Route
             element={
               <Protegido>
-                <Layout />
+                <DatosProvider>
+                  <Layout />
+                </DatosProvider>
               </Protegido>
             }
           >
             <Route path="/" element={<Resumen />} />
+            <Route path="/cartera" element={<Cartera />} />
             <Route
               path="/parametros"
               element={
