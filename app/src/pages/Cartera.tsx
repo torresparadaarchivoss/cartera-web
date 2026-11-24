@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
-import type { Dimension, FilaGrupo, PuntoSerie, Stock } from '../lib/datos'
+import type { Dimension, FilaFlujoGrupo, FilaGrupo, PuntoSerie, Stock } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Tabla } from '../components/Bloques'
 import type { Data } from 'plotly.js'
@@ -28,15 +28,41 @@ interface Fila {
   saldo_mora_90: number
   porcentaje: number | null
   indice: number | null
+  // Flujo del mes (activas + canceladas del mes)
+  cuentas_mes: number
+  gestionadas: number
+  rpc: number
+  monto_prometido: number
+  cobertura: number | null
+  tasa_rpc: number | null
 }
 
-function conIndicadores(filas: FilaGrupo[]): Fila[] {
+function conIndicadores(filas: FilaGrupo[], flujo: FilaFlujoGrupo[]): Fila[] {
   const total = filas.reduce((a, f) => a + f.saldo, 0)
-  return filas.map((f) => ({
-    ...f,
-    porcentaje: total ? f.saldo / total : null,
-    indice: f.saldo ? f.saldo_mora_90 / f.saldo : null,
-  }))
+  const por = new Map(flujo.map((x) => [x.grupo, x]))
+  const grupos = new Set([...filas.map((f) => f.grupo), ...flujo.map((x) => x.grupo)])
+  return [...grupos].map((g) => {
+    const s = filas.find((f) => f.grupo === g)
+    const fl = por.get(g)
+    const cuentasMes = fl?.cuentas ?? 0
+    const gestionadas = fl?.gestionadas ?? 0
+    const rpc = fl?.rpc ?? 0
+    return {
+      grupo: g,
+      cuentas: s?.cuentas ?? 0,
+      saldo: s?.saldo ?? 0,
+      cuentas_mora: s?.cuentas_mora ?? 0,
+      saldo_mora_90: s?.saldo_mora_90 ?? 0,
+      porcentaje: total && s ? s.saldo / total : null,
+      indice: s && s.saldo ? s.saldo_mora_90 / s.saldo : null,
+      cuentas_mes: cuentasMes,
+      gestionadas,
+      rpc,
+      monto_prometido: fl?.monto_prometido ?? 0,
+      cobertura: cuentasMes ? gestionadas / cuentasMes : null,
+      tasa_rpc: gestionadas ? rpc / gestionadas : null,
+    }
+  })
 }
 
 export default function Cartera() {
@@ -46,6 +72,7 @@ export default function Cartera() {
   const [stock, setStock] = useState<Stock | null>(null)
   const [filas, setFilas] = useState<FilaGrupo[] | null>(null)
   const [serie, setSerie] = useState<PuntoSerie[] | null>(null)
+  const [flujo, setFlujo] = useState<FilaFlujoGrupo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -55,12 +82,14 @@ export default function Cartera() {
       datos.stock(corte, filtros),
       datos.porDimension(corte, dim, filtros),
       datos.serie(dim, filtros),
+      datos.flujoPorDimension(corte, dim, filtros),
     ])
-      .then(([s, f, sr]) => {
+      .then(([s, f, sr, fl]) => {
         if (!vigente) return
         setStock(s)
         setFilas(f)
         setSerie(sr)
+        setFlujo(fl)
         setError(null)
       })
       .catch((e: Error) => vigente && setError(e.message))
@@ -70,24 +99,30 @@ export default function Cartera() {
   }, [corte, filtros, dim])
 
   const tabla = useMemo(() => {
-    if (!filas) return []
-    const con = conIndicadores(filas)
+    if (!filas || !flujo) return []
+    const con = conIndicadores(filas, flujo)
     if (dim === 'bucket') {
       return ORDEN_BUCKET.map((g) => con.find((f) => f.grupo === g)).filter((f): f is Fila => Boolean(f))
     }
     return con
-  }, [filas, dim])
+  }, [filas, flujo, dim])
 
   const total = useMemo(() => {
     const saldo = tabla.reduce((a, f) => a + f.saldo, 0)
     const cuentas = tabla.reduce((a, f) => a + f.cuentas, 0)
     const mora90 = tabla.reduce((a, f) => a + f.saldo_mora_90, 0)
+    const cuentasMes = tabla.reduce((a, f) => a + f.cuentas_mes, 0)
+    const gest = tabla.reduce((a, f) => a + f.gestionadas, 0)
+    const rpc = tabla.reduce((a, f) => a + f.rpc, 0)
     return {
       grupo: 'Total',
       cuentas,
       saldo,
       cuentas_mora: tabla.reduce((a, f) => a + f.cuentas_mora, 0),
       saldo_mora_90: mora90,
+      cobertura: cuentasMes ? gest / cuentasMes : null,
+      tasa_rpc: gest ? rpc / gest : null,
+      monto_prometido: tabla.reduce((a, f) => a + f.monto_prometido, 0),
       porcentaje: saldo ? 1 : null,
       indice: saldo ? mora90 / saldo : null,
     } as Fila
@@ -95,7 +130,7 @@ export default function Cartera() {
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
-  if (!stock || !filas || !serie || !corte) return <p className="vacio">Cargando el mes…</p>
+  if (!stock || !filas || !serie || !flujo || !corte) return <p className="vacio">Cargando el mes…</p>
   if (stock.cuentas === 0) return <Nota tipo="alerta" texto="No hay cuentas activas con los filtros seleccionados." />
 
   const etiquetaDim = DIMENSIONES.find((d) => d.valor === dim)?.etiqueta ?? ''
@@ -166,12 +201,16 @@ export default function Cartera() {
           { etiqueta: '% del saldo', formato: (x) => pct(x) },
           { etiqueta: 'Cuentas en mora', formato: (x) => entero(x) },
           { etiqueta: 'Índice de mora 90+', formato: (x) => pct(x) },
+          { etiqueta: 'Cobertura de gestión', formato: (x) => pct(x) },
+          { etiqueta: 'Tasa RPC', formato: (x) => pct(x) },
+          { etiqueta: 'Monto prometido', formato: (x) => dinero(x) },
+          { etiqueta: 'Monto pagado', formato: () => '—' },
         ]}
         filas={tabla.map((f) => ({
           etiqueta: f.grupo,
-          valores: [f.cuentas, f.saldo, f.porcentaje, f.cuentas_mora, f.indice],
+          valores: [f.cuentas, f.saldo, f.porcentaje, f.cuentas_mora, f.indice, f.cobertura, f.tasa_rpc, f.monto_prometido, null],
         }))}
-        total={{ etiqueta: total.grupo, valores: [total.cuentas, total.saldo, total.porcentaje, total.cuentas_mora, total.indice] }}
+        total={{ etiqueta: total.grupo, valores: [total.cuentas, total.saldo, total.porcentaje, total.cuentas_mora, total.indice, total.cobertura, total.tasa_rpc, total.monto_prometido, null] }}
       />
 
       <Grafico

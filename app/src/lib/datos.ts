@@ -77,6 +77,18 @@ export interface FlujoMes {
   canceladas: number
 }
 
+export interface FilaFlujoGrupo {
+  grupo: string
+  cuentas: number
+  gestionadas: number
+  rpc: number
+  monto_prometido: number
+}
+
+export async function flujoPorDimension(fecha: string, dim: Dimension, f: Filtros): Promise<FilaFlujoGrupo[]> {
+  return lanzar(await supabase.rpc('cartera_flujo_por_dimension', { p_fecha: fecha, p_dimension: dim, ...args(f) }))
+}
+
 export async function flujoMes(fecha: string, f: Filtros): Promise<FlujoMes> {
   return lanzar(await supabase.rpc('cartera_gestion_mes', { p_fecha: fecha, ...args(f) }))
 }
