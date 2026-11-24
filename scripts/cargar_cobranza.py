@@ -234,6 +234,26 @@ def resumen(df: pd.DataFrame, ini: dt.date) -> None:
         print("Aviso: ningún registro tiene días de mora.")
 
 
+METAS_DB = os.environ.get("METAS_DB_PATH", r"C:\Users\jctorresp\Videos\dashboard_cartera\data\metas.sqlite")
+
+
+def leer_metas() -> dict[str, pd.DataFrame]:
+    """Metas de recuperación y recaudo legal del archivo local del Streamlit (solo lectura; sin datos de clientes)."""
+    import sqlite3
+    con = sqlite3.connect(f"file:{METAS_DB}?mode=ro", uri=True)
+    try:
+        return {
+            "metas_bucket": pd.read_sql_query(
+                "select bucket, periodo, indicador, valor_meta from metas_bucket", con),
+            "metas_legal": pd.read_sql_query(
+                "select llave, periodo, indicador, valor_meta from metas_legal", con),
+            "legal_canal": pd.read_sql_query(
+                "select gestor, periodo, canal from legal_canal", con),
+        }
+    finally:
+        con.close()
+
+
 COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "saldo_corte", "supervisor",
                    "tipo_credito", "tipo_legal", "tipo_cartera", "fila", "gestor", "top"]
 
@@ -242,7 +262,7 @@ COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito",
 
 
 def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame,
-                    pagos: pd.DataFrame) -> None:
+                    pagos: pd.DataFrame, metas: dict) -> None:
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
     if not url:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
@@ -267,6 +287,14 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, esta
             with cur.copy("copy public.promesa (credito, fecha_gestion, fecha_promesa, monto, del_mes) from stdin") as cp:
                 for fila in promesas.itertuples(index=False):
                     cp.write_row([_valor_sql(v) for v in fila])
+            # Metas (configuración del mes): se reemplazan completas.
+            for tabla, cols in (("metas_bucket", ["bucket", "periodo", "indicador", "valor_meta"]),
+                                ("metas_legal", ["llave", "periodo", "indicador", "valor_meta"]),
+                                ("legal_canal", ["gestor", "periodo", "canal"])):
+                cur.execute(f"delete from public.{tabla}")
+                with cur.copy(f"copy public.{tabla} ({', '.join(cols)}) from stdin") as cp:
+                    for fila in metas[tabla][cols].itertuples(index=False):
+                        cp.write_row([_valor_sql(v) for v in fila])
             # Pagos del mes: se reemplazan completos.
             cur.execute("delete from public.pago")
             with cur.copy(f"copy public.pago ({', '.join(COLUMNAS_PAGO_TABLA)}) from stdin") as cp:
@@ -333,7 +361,9 @@ def main() -> None:
     print(f"Promesas: {len(promesas):,} filas (mes y mes anterior).")
     estado = gc.estado_diario(df, promesas)
     print(f"Estado de promesas por día: {len(estado):,} filas.")
-    cargar_supabase(df, ini, promesas, estado, pagos_enr)
+    metas = leer_metas()
+    print(f"Metas: {sum(len(v) for v in metas.values())} filas.")
+    cargar_supabase(df, ini, promesas, estado, pagos_enr, metas)
 
 
 if __name__ == "__main__":
