@@ -42,7 +42,7 @@ export default function Resumen() {
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
-  if (!hoy || !ini || !flujo || !b0 || !corte || !fechaBase) return <p className="vacio">Cargando el mes…</p>
+  if (!hoy || !ini || !flujo || !b0 || !corte || !fechaBase || !filtros) return <p className="vacio">Cargando el mes…</p>
   if (hoy.cuentas === 0) return <Nota tipo="alerta" texto="No hay cuentas activas con los filtros seleccionados." />
 
   const variacion = ini.saldo ? hoy.saldo / ini.saldo - 1 : null
