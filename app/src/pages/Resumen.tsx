@@ -2,37 +2,39 @@ import { useEffect, useState } from 'react'
 import type { Data } from 'plotly.js'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
-import type { Bucket0Desmejora, FlujoMes, Stock } from '../lib/datos'
+import type { Bucket0Desmejora, Cohorte, FlujoMes, Stock } from '../lib/datos'
 import { dinero, entero, fecha, pct, pp } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo } from '../components/Bloques'
 import Promesas from '../components/Promesas'
 
-// Resumen gerencial (modules/resumen.py). Pendiente: promesas en vivo, bucket 0 que desmejoran y evolución
-// de mora de la cohorte.
+// Resumen gerencial (modules/resumen.py). Pendiente: filtros propios de Promesas (supervisor, usuario asignado,
+// Cuentas Top) y monto pagado dentro de la sección Promesas por filtros propios.
+interface Datos {
+  hoy: Stock
+  ini: Stock
+  flujo: FlujoMes
+  b0: Bucket0Desmejora
+  coh: Cohorte
+}
+
 export default function Resumen() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
-  const [hoy, setHoy] = useState<Stock | null>(null)
-  const [ini, setIni] = useState<Stock | null>(null)
-  const [flujo, setFlujo] = useState<FlujoMes | null>(null)
-  const [b0, setB0] = useState<Bucket0Desmejora | null>(null)
+  const [datosMes, setDatosMes] = useState<Datos | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!corte || !fechaBase || !filtros) return
     let vigente = true
+    setError(null)
     Promise.all([
       datos.stock(corte, filtros),
       datos.stock(fechaBase, filtros),
       datos.flujoMes(corte, filtros),
       datos.bucket0Desmejora(corte, filtros),
+      datos.cohorte(corte, filtros),
     ])
-      .then(([h, i, f, b]) => {
-        if (!vigente) return
-        setHoy(h)
-        setIni(i)
-        setFlujo(f)
-        setB0(b)
-        setError(null)
+      .then(([hoy, ini, flujo, b0, coh]) => {
+        if (vigente) setDatosMes({ hoy, ini, flujo, b0, coh })
       })
       .catch((e: Error) => vigente && setError(e.message))
     return () => {
@@ -42,7 +44,9 @@ export default function Resumen() {
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
-  if (!hoy || !ini || !flujo || !b0 || !corte || !fechaBase || !filtros) return <p className="vacio">Cargando el mes…</p>
+  if (!datosMes || !corte || !fechaBase || !filtros) return <p className="vacio">Cargando el mes…</p>
+
+  const { hoy, ini, flujo, b0, coh } = datosMes
   if (hoy.cuentas === 0) return <Nota tipo="alerta" texto="No hay cuentas activas con los filtros seleccionados." />
 
   const variacion = ini.saldo ? hoy.saldo / ini.saldo - 1 : null
@@ -53,6 +57,8 @@ export default function Resumen() {
   const contactabilidad = flujo.creditos_gestionados ? flujo.creditos_contacto / flujo.creditos_gestionados : null
   const tasaRpc = flujo.creditos_gestionados ? flujo.creditos_rpc / flujo.creditos_gestionados : null
   const tasaPromesa = flujo.creditos_rpc ? flujo.creditos_promesa / flujo.creditos_rpc : null
+
+  const mv = (k: string) => coh.movimientos[k] ?? { creditos: 0, saldo: 0, pct_saldo: null }
 
   const embudo: Data[] = [{
     type: 'funnel',
@@ -92,8 +98,17 @@ export default function Resumen() {
       </FilaKpi>
       <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
         layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
+
       <Promesas corte={corte} filtros={filtros} />
-      <Nota tipo="alerta" texto="Pendiente de esta versión: evolución de mora de la cohorte y monto pagado." />
+
+      <Titulo texto="Evolución de mora (cohorte del primer día)"
+        ayuda="Cohorte congelada: créditos activos el primer día del mes, con su bucket de inicio (loantape). Mejora, mantiene o desmejora según el bucket a la fecha de corte; saldo y cuentas sobre la base del primer día." />
+      <FilaKpi>
+        <Kpi etiqueta="Mejora" valor={pct(mv('Mejora').pct_saldo)} detalle={`${entero(mv('Mejora').creditos)} cuentas`} tono="bueno" />
+        <Kpi etiqueta="Mantiene" valor={pct(mv('Mantiene').pct_saldo)} detalle={`${entero(mv('Mantiene').creditos)} cuentas`} />
+        <Kpi etiqueta="Desmejora" valor={pct(mv('Desmejora').pct_saldo)} detalle={`${entero(mv('Desmejora').creditos)} cuentas`} tono="malo" />
+        <Kpi etiqueta="Cuentas en la cohorte" valor={entero(coh.creditos_con_referencia)} detalle={`${entero(coh.creditos_sin_referencia)} sin referencia`} />
+      </FilaKpi>
     </>
   )
 }

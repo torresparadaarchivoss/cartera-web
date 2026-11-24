@@ -143,6 +143,18 @@ export async function promesasSerie(fecha: string, f: Filtros): Promise<PuntoPro
   return lanzar(await supabase.rpc('cartera_promesas_serie', { p_fecha: fecha, ...args(f) }))
 }
 
+export interface Cohorte {
+  creditos_cohorte: number
+  creditos_con_referencia: number
+  creditos_sin_referencia: number
+  saldo_base_con_referencia: number
+  movimientos: Record<string, { creditos: number; saldo: number; pct_saldo: number | null }>
+}
+
+export async function cohorte(fecha: string, f: Filtros): Promise<Cohorte> {
+  return lanzar(await supabase.rpc('cartera_cohorte', { p_fecha: fecha, ...args(f) }))
+}
+
 export async function flujoMes(fecha: string, f: Filtros): Promise<FlujoMes> {
   return lanzar(await supabase.rpc('cartera_gestion_mes', { p_fecha: fecha, ...args(f) }))
 }
