@@ -4,6 +4,7 @@ import * as datos from '../lib/datos'
 import type { CreditoLegal, MetasRecuperacion } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS } from './Bloques'
+import { MultiSelect } from './Selectores'
 import { UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
 import {
   COMPROBANTES, ORDEN_CANAL, SIN_ASIGNAR, SIN_CANAL, comprobanteDe, tablaAgente, tablaCanal,
@@ -109,9 +110,11 @@ export default function RecaudoLegal({ corte, fechaBase, factor }: { corte: stri
       <div className="dc-tarjeta">
         <Titulo texto="Recaudo legal por agente"
           ayuda="Canal y comprobante filtran los créditos. Canal: el del gestor. Meta: la individual del mes. % Alcance = recuperado ÷ meta del mes; el punto compara el recuperado con la meta a la fecha. Promesas vigentes: última promesa con fecha de pago desde la fecha de corte, de los créditos legales del agente." />
-        <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
-          <Selector etiqueta="Canal" valores={ORDEN_CANAL} seleccion={canales} onChange={setCanales} />
-          <Selector etiqueta="Comprobante" valores={COMPROBANTES} seleccion={comprobantes} onChange={setComprobantes} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 8 }}>
+          <MultiSelect etiqueta="Canal" opciones={[...ORDEN_CANAL]} valor={canales} onChange={setCanales}
+            placeholder="Todos los canales" />
+          <MultiSelect etiqueta="Comprobante" opciones={[...COMPROBANTES]} valor={comprobantes} onChange={setComprobantes}
+            placeholder="Todos los comprobantes" />
         </div>
         <TablaAgente mes={mes} filas={agente.filas} total={agente.total} />
         <p style={{ fontSize: 12, marginTop: 8 }}>
@@ -135,23 +138,6 @@ function sinCanalAgentes(creditos: CreditoLegal[], meta: MetasRecuperacion): str
   const s = new Set<string>()
   for (const c of creditos) if (c.gestor && !meta.canalGestor[c.gestor]) s.add(c.gestor.toUpperCase())
   return [...s].sort()
-}
-
-function Selector({ etiqueta, valores, seleccion, onChange }: {
-  etiqueta: string
-  valores: readonly string[]
-  seleccion: string[]
-  onChange: (v: string[]) => void
-}) {
-  return (
-    <label>
-      {etiqueta}{' '}
-      <select multiple value={seleccion} onChange={(e) => onChange(Array.from(e.target.selectedOptions, (o) => o.value))}
-        style={{ minWidth: 180 }}>
-        {valores.map((v) => <option key={v} value={v}>{v}</option>)}
-      </select>
-    </label>
-  )
 }
 
 function TablaLegal({ filas, total }: { filas: FilaLegal[]; total: FilaLegal }) {

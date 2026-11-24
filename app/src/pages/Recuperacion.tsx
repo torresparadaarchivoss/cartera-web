@@ -7,6 +7,7 @@ import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS, type Tono } from '../components/Bloques'
 import { factorProrrateo, UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
 import RecaudoLegal from '../components/RecaudoLegal'
+import { SelectBox } from '../components/Selectores'
 
 // Recuperación (modules/recuperacion.py, tabla por bucket y pagos del mes). Pendiente: recaudo legal por canal y agente.
 
@@ -188,13 +189,9 @@ export default function Recuperacion() {
 
       <Titulo texto="Pagos y meta por bucket de mora" />
       <div className="dc-tarjeta">
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Bucket de mora{' '}
-            <select value={bucket} onChange={(e) => setBucket(e.target.value as BucketRecuperacion)}>
-              {BUCKETS.map((b) => <option key={b.valor} value={b.valor}>{b.etiqueta}</option>)}
-            </select>
-          </label>
+        <div style={{ maxWidth: 260, marginBottom: 8 }}>
+          <SelectBox etiqueta="Bucket de mora" opciones={BUCKETS.map((b) => ({ valor: b.valor, etiqueta: b.etiqueta }))}
+            valor={bucket} onChange={setBucket} />
         </div>
         <table className="dc-tabla">
           <thead>

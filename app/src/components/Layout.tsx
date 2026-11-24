@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useDatos } from '../lib/contexto'
 import { fecha } from '../lib/formato'
+import { MultiSelect, SelectBox } from './Selectores'
 
 const PAGINAS = [
   { ruta: '/', etiqueta: 'Resumen gerencial' },
@@ -9,30 +10,6 @@ const PAGINAS = [
   { ruta: '/recuperacion', etiqueta: 'Recuperación' },
 ]
 
-const SIN_DATO = '(sin dato)'
-
-function Multi({ etiqueta, valores, seleccion, onChange, nombre }: {
-  etiqueta: string
-  valores: string[]
-  seleccion: string[]
-  onChange: (v: string[]) => void
-  nombre?: (v: string) => string
-}) {
-  return (
-    <label>
-      {etiqueta}
-      <select
-        multiple
-        value={seleccion}
-        onChange={(e) => onChange(Array.from(e.target.selectedOptions, (o) => o.value))}
-      >
-        {valores.map((v) => (
-          <option key={v} value={v}>{nombre ? nombre(v) : (v || SIN_DATO)}</option>
-        ))}
-      </select>
-    </label>
-  )
-}
 
 export default function Layout() {
   const { perfil, cerrarSesion } = useAuth()
@@ -63,20 +40,16 @@ export default function Layout() {
           {cargando && <div className="vacio">Cargando fechas…</div>}
           {error && <div className="error-pantalla">{error}</div>}
           {fechas.length > 0 && (
-            <label>
-              Fecha de seguimiento
-              <select value={fechaSel ?? ''} onChange={(e) => setFecha(e.target.value)}>
-                {[...fechas].reverse().map((f) => <option key={f} value={f}>{fecha(f)}</option>)}
-              </select>
-            </label>
+            <SelectBox etiqueta="Fecha de seguimiento" opciones={[...fechas].reverse().map((f) => ({ valor: f, etiqueta: fecha(f) }))}
+              valor={fechaSel ?? ''} onChange={setFecha} />
           )}
           {opciones && filtros && (
             <>
-              <Multi etiqueta="Supervisor" valores={opciones.supervisor} seleccion={filtros.supervisor}
+              <MultiSelect etiqueta="Supervisor" opciones={opciones.supervisor} valor={filtros.supervisor}
                 onChange={(v) => setFiltros({ ...filtros, supervisor: v })} />
-              <Multi etiqueta="Tipo de crédito" valores={opciones.tipo_credito} seleccion={filtros.tipo_credito}
+              <MultiSelect etiqueta="Tipo de crédito" opciones={opciones.tipo_credito} valor={filtros.tipo_credito}
                 onChange={(v) => setFiltros({ ...filtros, tipo_credito: v })} />
-              <Multi etiqueta="Tipo legal" valores={opciones.tipo_legal} seleccion={filtros.tipo_legal}
+              <MultiSelect etiqueta="Tipo legal" opciones={opciones.tipo_legal} valor={filtros.tipo_legal}
                 onChange={(v) => setFiltros({ ...filtros, tipo_legal: v })} />
               <div className="marca">Un filtro vacío incluye todos los valores. Tipo legal excluye JUR por defecto.</div>
             </>
