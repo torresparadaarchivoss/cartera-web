@@ -67,6 +67,20 @@ export async function porDimension(fecha: string, dim: Dimension, f: Filtros): P
   return lanzar(await supabase.rpc('cartera_por_dimension', { p_fecha: fecha, p_dimension: dim, ...args(f) }))
 }
 
+export interface FlujoMes {
+  cuentas: number
+  gestiones: number
+  creditos_gestionados: number
+  creditos_contacto: number
+  creditos_rpc: number
+  creditos_promesa: number
+  canceladas: number
+}
+
+export async function flujoMes(fecha: string, f: Filtros): Promise<FlujoMes> {
+  return lanzar(await supabase.rpc('cartera_gestion_mes', { p_fecha: fecha, ...args(f) }))
+}
+
 export async function serie(dim: Dimension, f: Filtros): Promise<PuntoSerie[]> {
   return lanzar(await supabase.rpc('cartera_serie', { p_dimension: dim, ...args(f) }))
 }
