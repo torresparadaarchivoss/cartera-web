@@ -104,6 +104,7 @@ SELECT
       REPLACE(CONCAT(LTRIM(RTRIM(tipo_doc)), '_', LTRIM(RTRIM(numero_doc))), '_', ' ') AS credito
     , CAST(fecha AS date)                    AS fecha
     , CAST(ISNULL(pago, 0) AS FLOAT)         AS pago
+    , COALESCE(LTRIM(RTRIM(clasi_comprob_nombre)), '') AS canal
 FROM P
 WHERE f_reporte = (SELECT MAX(f_reporte) FROM P)
 """
@@ -259,7 +260,7 @@ COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "sal
 
 
 COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top",
-                       "bucket_pago", "bucket_inicial"]
+                       "bucket_pago", "bucket_inicial", "canal"]
 
 
 def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame,

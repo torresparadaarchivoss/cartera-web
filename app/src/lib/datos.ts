@@ -205,7 +205,13 @@ export async function recuperacionPagosDia(fecha: string, f: Filtros): Promise<P
 export interface MetasRecuperacion {
   metaBucket: Record<string, number>   // '0'..'6' → meta del mes (indicador recuperacion)
   metaLegal: number | null             // suma de metas de canal (Recaudo legal) del mes
+  metaCanal: Record<string, number>    // canal → meta del mes (individual sumada o de canal)
+  origenCanal: Record<string, 'individual' | 'canal'>
+  metaAgente: Record<string, number>   // gestor → meta individual del mes
+  canalGestor: Record<string, string>  // gestor → canal del mes (legal_canal)
 }
+
+export const CANALES_LEGAL = ['Embargo', 'Externo', 'Interno'] as const
 
 // Réplica de services/recaudo_legal.metas: meta por canal = suma de metas individuales de sus gestores si las hay;
 // si no, la meta del canal. La meta Legal es la suma de las metas de canal.
@@ -227,15 +233,41 @@ export async function metasRecuperacion(periodo: string): Promise<MetasRecuperac
     if (r.indicador === 'gestor') individual.set(r.llave, Number(r.valor_meta))
     if (r.indicador === 'canal') porCanal.set(r.llave, Number(r.valor_meta))
   }
-  const canalDe = new Map((lc.data ?? []).map((r) => [r.gestor, r.canal]))
+  const canalGestor: Record<string, string> = {}
+  for (const r of lc.data ?? []) if (r.canal) canalGestor[r.gestor] = r.canal
 
-  let metaLegal: number | null = null
-  for (const canal of ['Embargo', 'Externo', 'Interno']) {
-    const gestores = [...individual.keys()].filter((g) => canalDe.get(g) === canal)
-    let meta: number | undefined
-    if (gestores.length) meta = gestores.reduce((a, g) => a + (individual.get(g) ?? 0), 0)
-    else meta = porCanal.get(canal)
-    if (meta !== undefined) metaLegal = (metaLegal ?? 0) + meta
+  const metaCanal: Record<string, number> = {}
+  const origenCanal: Record<string, 'individual' | 'canal'> = {}
+  for (const canal of CANALES_LEGAL) {
+    const gestores = [...individual.keys()].filter((g) => canalGestor[g] === canal)
+    if (gestores.length) {
+      metaCanal[canal] = gestores.reduce((a, g) => a + (individual.get(g) ?? 0), 0)
+      origenCanal[canal] = 'individual'
+    } else if (porCanal.has(canal)) {
+      metaCanal[canal] = porCanal.get(canal) as number
+      origenCanal[canal] = 'canal'
+    }
   }
-  return { metaBucket, metaLegal }
+  const valores = Object.values(metaCanal)
+  const metaLegal = valores.length ? valores.reduce((a, b) => a + b, 0) : null
+  const metaAgente = Object.fromEntries(individual)
+  return { metaBucket, metaLegal, metaCanal, origenCanal, metaAgente, canalGestor }
+}
+
+// ----------------------------------------------------------------------------- Recaudo legal (0018)
+export interface CreditoLegal {
+  credito: string
+  saldo: number
+  gestor: string      // '' = sin asignar
+  recaudo: number
+  con_pago: boolean
+  embargo: boolean
+}
+
+export async function recaudoLegalBase(fecha: string): Promise<CreditoLegal[]> {
+  return lanzar(await supabase.rpc('recaudo_legal_base', { p_fecha: fecha }))
+}
+
+export async function recaudoLegalVigentes(fecha: string): Promise<{ credito: string; monto: number }[]> {
+  return lanzar(await supabase.rpc('recaudo_legal_vigentes', { p_fecha: fecha }))
 }

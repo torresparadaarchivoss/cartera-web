@@ -5,6 +5,8 @@ import * as datos from '../lib/datos'
 import type { BucketRecuperacion, FilaRecuperacion, MetasRecuperacion, PagoDia } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS, type Tono } from '../components/Bloques'
+import { factorProrrateo, UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
+import RecaudoLegal from '../components/RecaudoLegal'
 
 // Recuperación (modules/recuperacion.py, tabla por bucket y pagos del mes). Pendiente: recaudo legal por canal y agente.
 
@@ -16,29 +18,7 @@ const BUCKETS: { etiqueta: string; valor: BucketRecuperacion }[] = [
 // Filas en el orden del Streamlit: buckets 0-6, Legal, Sin mora y Sin referencia.
 const ORDEN = ['0', '1', '2', '3', '4', '5', '6', 'Legal', 'Sin mora', 'Sin referencia']
 
-// Pesos por día (lunes a domingo) y semáforo: valores por defecto de config.py (APP.ENV no se lee desde la web).
-// Si el APP.ENV del Streamlit trae otros valores, hay que ajustarlos aquí.
-const PESOS_DIAS = [1, 1, 1, 1, 1, 0.5, 0]
-const UMBRAL_VERDE = 1.0
-const UMBRAL_AMARILLO = 0.8
-
-// Fracción del mes laborable transcurrida a la fecha (services/targets_engine.factor_prorrateo).
-function factorProrrateo(inicio: string, corte: string): number {
-  const [a, m] = inicio.split('-').map(Number)
-  const diasEnMes = new Date(a, m, 0).getDate()
-  let total = 0
-  let hasta = 0
-  for (let d = 1; d <= diasEnMes; d++) {
-    const f = new Date(a, m - 1, d)
-    const peso = PESOS_DIAS[(f.getDay() + 6) % 7] // getDay: domingo=0; los pesos empiezan en lunes
-    total += peso
-    const iso = `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    if (iso <= corte) hasta += peso
-  }
-  return total ? hasta / total : 1
-}
-
-function semaforo(c: number | null): Tono {
+function tonoSemaforo(c: number | null): Tono {
   if (c === null) return 'neutro'
   if (c >= UMBRAL_VERDE) return 'bueno'
   if (c >= UMBRAL_AMARILLO) return 'alerta'
@@ -152,7 +132,7 @@ export default function Recuperacion() {
   const legal = filas.find((f) => f.fila === 'Legal')?.pagado ?? 0
   const admin = tot.pagado - legal
   const cumpl = tot.cumplFecha
-  const tonoCumpl = semaforo(cumpl)
+  const tonoCumpl = tonoSemaforo(cumpl)
   const metaFechaTot = tot.metaFecha
 
   const grafico = filas.filter((f) => f.fila !== 'Total')
@@ -181,7 +161,7 @@ export default function Recuperacion() {
 
   const celda = (f: Fila, c: (typeof columnas)[number]) => {
     const v = f[c.clave] as number | null
-    const color = c.semaforo && v !== null ? TONOS[semaforo(v)] : undefined
+    const color = c.semaforo && v !== null ? TONOS[tonoSemaforo(v)] : undefined
     return <td key={c.etiqueta} style={color ? { color, fontWeight: 600 } : undefined}>{c.formato(v)}</td>
   }
 
@@ -252,6 +232,8 @@ export default function Recuperacion() {
           yaxis: { tickprefix: '$', tickformat: ',.0f' },
           yaxis2: { overlaying: 'y', side: 'right', tickprefix: '$', tickformat: ',.0f', showgrid: false, rangemode: 'tozero' },
         }} />
+
+      <RecaudoLegal corte={corte} fechaBase={fechaBase} factor={factor} />
     </>
   )
 }
