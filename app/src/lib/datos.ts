@@ -98,6 +98,46 @@ export async function bucket0Desmejora(fecha: string, f: Filtros): Promise<Bucke
   return lanzar(await supabase.rpc('cartera_bucket0_desmejora', { p_fecha: fecha, ...args(f) }))
 }
 
+export interface PromesasEstado {
+  cuentas: number
+  monto: number
+  saldo: number
+  promesas: number
+}
+
+export interface PromesasResumen {
+  Vencidas: PromesasEstado
+  Vigentes: PromesasEstado
+  'Promesado del mes': PromesasEstado
+  'Del día': PromesasEstado
+}
+
+export async function promesasResumen(fecha: string, f: Filtros): Promise<PromesasResumen> {
+  return lanzar(await supabase.rpc('cartera_promesas', { p_fecha: fecha, ...args(f) }))
+}
+
+export interface FilaPromesaTabla {
+  fila: string
+  vencidas: number
+  vigentes: number
+  promesado_mes: number
+}
+
+export async function promesasTabla(fecha: string, medida: 'monto' | 'saldo', f: Filtros): Promise<FilaPromesaTabla[]> {
+  return lanzar(await supabase.rpc('cartera_promesas_tabla', { p_fecha: fecha, p_medida: medida, ...args(f) }))
+}
+
+export interface PuntoPromesaDia {
+  fecha: string
+  vig_monto: number
+  vig_saldo: number
+  promesas_dia: number
+}
+
+export async function promesasSerie(fecha: string, f: Filtros): Promise<PuntoPromesaDia[]> {
+  return lanzar(await supabase.rpc('cartera_promesas_serie', { p_fecha: fecha, ...args(f) }))
+}
+
 export async function flujoMes(fecha: string, f: Filtros): Promise<FlujoMes> {
   return lanzar(await supabase.rpc('cartera_gestion_mes', { p_fecha: fecha, ...args(f) }))
 }

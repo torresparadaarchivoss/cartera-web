@@ -5,6 +5,7 @@ import * as datos from '../lib/datos'
 import type { Bucket0Desmejora, FlujoMes, Stock } from '../lib/datos'
 import { dinero, entero, fecha, pct, pp } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo } from '../components/Bloques'
+import Promesas from '../components/Promesas'
 
 // Resumen gerencial (modules/resumen.py). Pendiente: promesas en vivo, bucket 0 que desmejoran y evolución
 // de mora de la cohorte.
@@ -91,7 +92,8 @@ export default function Resumen() {
       </FilaKpi>
       <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
         layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
-      <Nota tipo="alerta" texto="Pendiente de esta versión: promesas en vivo y evolución de mora de la cohorte." />
+      <Promesas corte={corte} filtros={filtros} />
+      <Nota tipo="alerta" texto="Pendiente de esta versión: evolución de mora de la cohorte y monto pagado." />
     </>
   )
 }

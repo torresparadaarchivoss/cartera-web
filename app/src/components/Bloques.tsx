@@ -48,9 +48,10 @@ export function Nota({ texto, tipo = 'info' }: { texto: string; tipo?: 'info' | 
 }
 
 // Tabla con la misma estructura que el Streamlit: primera columna de texto, resto numérico, fila de total opcional.
-export function Tabla({ titulo, ayuda, cabeceras, filas, total }: {
+export function Tabla({ titulo, ayuda, etiquetaFila = 'Grupo', cabeceras, filas, total }: {
   titulo: string
   ayuda?: string
+  etiquetaFila?: string
   cabeceras: { etiqueta: string; formato: (x: number | null) => string }[]
   filas: { etiqueta: string; valores: (number | null)[] }[]
   total?: { etiqueta: string; valores: (number | null)[] }
@@ -61,7 +62,7 @@ export function Tabla({ titulo, ayuda, cabeceras, filas, total }: {
       <table className="dc-tabla">
         <thead>
           <tr>
-            <th>Grupo</th>
+            <th>{etiquetaFila}</th>
             {cabeceras.map((c) => <th key={c.etiqueta}>{c.etiqueta}</th>)}
           </tr>
         </thead>
