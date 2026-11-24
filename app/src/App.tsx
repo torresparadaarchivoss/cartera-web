@@ -1,0 +1,64 @@
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useAuth } from './lib/auth'
+import { configuracionCompleta } from './lib/supabase'
+import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
+import Login from './pages/Login'
+import Resumen from './pages/Resumen'
+
+// Guarda: sin sesión → /login
+function Protegido({ children }: { children: JSX.Element }) {
+  const { cargando, session } = useAuth()
+  if (cargando) return <p className="contenido">Cargando…</p>
+  if (!session) return <Navigate to="/login" replace />
+  return children
+}
+
+// Guarda: sin permiso de administrador → redirige
+function SoloAdmin({ children }: { children: JSX.Element }) {
+  const { cargando, perfil } = useAuth()
+  if (cargando) return <p className="contenido">Cargando…</p>
+  if (!perfil?.es_admin) return <Navigate to="/" replace />
+  return children
+}
+
+export default function App() {
+  if (!configuracionCompleta) {
+    return (
+      <div className="contenido">
+        <div className="aviso">
+          <strong>Falta la configuración.</strong> Copiá <code>app/.env.production.example</code> como{' '}
+          <code>app/.env.production</code> y pegá la URL y la anon key de Supabase.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <HashRouter>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            element={
+              <Protegido>
+                <Layout />
+              </Protegido>
+            }
+          >
+            <Route path="/" element={<Resumen />} />
+            <Route
+              path="/parametros"
+              element={
+                <SoloAdmin>
+                  <p>Parámetros (pendiente de portar).</p>
+                </SoloAdmin>
+              }
+            />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
+    </HashRouter>
+  )
+}

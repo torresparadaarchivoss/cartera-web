@@ -1,0 +1,23 @@
+/* Única fuente de color y tipografía. Los componentes usan estas variables, no hex sueltos.
+   Paleta: skill marca-instacredit (núcleo verde + navy; acentos para gráficos). */
+:root {
+  --verde: #4b9d45;
+  --navy: #06255b;
+  --blanco: #ffffff;
+  --lima: #93bf02;
+  --cielo: #00a4e0;
+  --amarillo: #f2c20c;
+  --naranja: #f5821f;
+  --rojo: #ee232e;
+
+  --texto: #333740;
+  --gris: #5b6170;
+  --fondo: #f2f4f7;
+  --borde: #dfe3ea;
+
+  --fuente-titulo: 'Inter Tight', Arial, sans-serif;
+  --fuente-cuerpo: Arial, Helvetica, sans-serif;
+
+  --radio: 12px;
+  --margen-movil: 16px;
+}
