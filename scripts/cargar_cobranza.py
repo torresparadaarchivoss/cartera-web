@@ -217,7 +217,11 @@ def resumen(df: pd.DataFrame, ini: dt.date) -> None:
         print("Aviso: ningún registro tiene días de mora.")
 
 
-def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame) -> None:
+COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "saldo_corte", "supervisor",
+                   "tipo_credito", "tipo_legal", "tipo_cartera", "fila"]
+
+
+def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame) -> None:
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
     if not url:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
@@ -241,6 +245,12 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame) -> N
             cur.execute("delete from public.promesa")
             with cur.copy("copy public.promesa (credito, fecha_gestion, fecha_promesa, monto, del_mes) from stdin") as cp:
                 for fila in promesas.itertuples(index=False):
+                    cp.write_row([_valor_sql(v) for v in fila])
+            # Estado de promesas por día y crédito: se reemplaza completo.
+            cur.execute("delete from public.promesa_dia")
+            with cur.copy(f"copy public.promesa_dia ({', '.join(COLUMNAS_ESTADO)}) from stdin") as cp:
+                solo_fecha = estado.assign(f_reporte=pd.to_datetime(estado["f_reporte"]).dt.date)
+                for fila in solo_fecha[COLUMNAS_ESTADO].itertuples(index=False):
                     cp.write_row([_valor_sql(v) for v in fila])
             # Ventana de 1 mes: se borra lo anterior al mes cargado.
             cur.execute("delete from public.cobranza_diaria where f_reporte < %s", (ini,))
@@ -280,7 +290,9 @@ def main() -> None:
         sys.exit("Nada que cargar; no se borró nada en Supabase.")
     promesas = leer_promesas(ini, fin, df)
     print(f"Promesas: {len(promesas):,} filas (mes y mes anterior).")
-    cargar_supabase(df, ini, promesas)
+    estado = gc.estado_diario(df, promesas)
+    print(f"Estado de promesas por día: {len(estado):,} filas.")
+    cargar_supabase(df, ini, promesas, estado)
 
 
 if __name__ == "__main__":

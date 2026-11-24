@@ -57,8 +57,7 @@ export default function Promesas({ corte, filtros }: Props) {
     return ORDEN_FILAS.map((f) => tabla.find((x) => x.fila === f)).filter((x): x is FilaPromesaTabla => Boolean(x))
   }, [tabla])
 
-  if (error) return <div className="error-pantalla">No se pudieron cargar las promesas: {error}</div>
-  if (!resumen || !tabla) return <p className="vacio">Cargando promesas…</p>
+  const cargando = !resumen || !tabla
 
   const medidaTexto = medida.toLowerCase()
   const tot = (k: keyof FilaPromesaTabla) => filas.reduce((a, f) => a + (f[k] as number), 0)
@@ -67,6 +66,7 @@ export default function Promesas({ corte, filtros }: Props) {
   const totVenc = tot('vencidas')
 
   const kpi = (e: keyof PromesasResumen, etiqueta: string, tono: 'info' | 'neutro' | 'bueno' = 'neutro') => {
+    if (!resumen) return null
     const v = resumen[e]
     return (
       <Kpi etiqueta={etiqueta} valor={dinero(v.monto)}
@@ -106,14 +106,18 @@ export default function Promesas({ corte, filtros }: Props) {
           </select>
         </label>
       </div>
-      <FilaKpi>
-        {kpi('Vigentes', 'Promesas vigentes', 'info')}
-        {kpi('Vencidas', 'Promesas vencidas')}
-        {kpi('Promesado del mes', 'Promesado del mes')}
-        <Kpi etiqueta="Monto pagado" valor="—" detalle="pendiente de pagos" tono="bueno" />
-      </FilaKpi>
+      {error && <div className="error-pantalla">No se pudieron cargar las promesas: {error}</div>}
+      {cargando && !error && <p className="vacio">Cargando promesas…</p>}
+      {resumen && (
+        <FilaKpi>
+          {kpi('Vigentes', 'Promesas vigentes', 'info')}
+          {kpi('Vencidas', 'Promesas vencidas')}
+          {kpi('Promesado del mes', 'Promesado del mes')}
+          <Kpi etiqueta="Monto pagado" valor="—" detalle="pendiente de pagos" tono="bueno" />
+        </FilaKpi>
+      )}
 
-      <Tabla
+      {tabla && <Tabla
         titulo={`Promesas por bucket de inicio · ${medidaTexto} al ${fecha(corte)}`}
         ayuda="Filas: bucket de inicio del mes (mora de referencia del loantape). Del bucket 0 solo las cuentas que hoy están en mora («0 (desmejora)»). % vigentes = vigentes ÷ promesado del mes."
         etiquetaFila="Bucket de inicio"
@@ -127,7 +131,7 @@ export default function Promesas({ corte, filtros }: Props) {
           valores: [f.vencidas, f.vigentes, f.promesado_mes ? f.vigentes / f.promesado_mes : null],
         }))}
         total={{ etiqueta: 'Total', valores: [totVenc, totVig, totPromesado ? totVig / totPromesado : null] }}
-      />
+      />}
 
       {errorSerie && <div className="error-pantalla">La tendencia por día no se pudo cargar: {errorSerie}</div>}
       {serie && (

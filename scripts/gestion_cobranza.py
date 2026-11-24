@@ -116,6 +116,65 @@ def promesas_filas(gestiones_mes: pd.DataFrame, gestiones_previas: pd.DataFrame,
     return out.sort_values("fecha_gestion", kind="stable").reset_index(drop=True)
 
 
+ESTADOS = ("Vencidas", "Vigentes", "Promesado del mes", "Del día")
+
+
+def estado_diario(cartera: pd.DataFrame, promesas: pd.DataFrame) -> pd.DataFrame:
+    """Estado de promesas de cada día del mes (réplica de services/promesas.py detalle(), día por día).
+    Una fila por (día, crédito, estado), con los atributos y el saldo de la foto de ese día (o la última anterior).
+    cartera: una fila por crédito y día, con f_reporte, saldo, dias_mora (o bucket_actual), tipo_cartera,
+    supervisor, tipo_credito, tipo_legal y bucket_inicial. promesas: salida de promesas_filas."""
+    cart = cartera.assign(f_reporte=pd.to_datetime(cartera["f_reporte"]))
+    cart = cart.sort_values(["credito", "f_reporte"], kind="stable")
+    dias = sorted(cart["f_reporte"].unique())
+    partes = []
+    for t in dias:
+        t = pd.Timestamp(t)
+        # Atributos: última fila de cada crédito hasta el día t (como _cuentas en services/promesas.py).
+        c = cart[cart["f_reporte"] <= t].drop_duplicates("credito", keep="last").copy()
+        en_corte = c["f_reporte"].eq(t).to_numpy()
+        saldo = c["saldo"].astype(float).where(en_corte, 0.0).clip(lower=0.0).to_numpy()
+        bucket_hoy = pd.to_numeric(c["bucket_actual"], errors="coerce").where(en_corte & (saldo > 0)).to_numpy()
+        ini = pd.to_numeric(c["bucket_inicial"], errors="coerce").to_numpy()
+        legal = c["tipo_cartera"].eq("Legal").to_numpy()
+        fila = np.where(legal, "Legal",
+                np.where(pd.isna(ini), "Sin referencia",
+                np.where(ini == 0, np.where(np.nan_to_num(bucket_hoy, nan=0) >= 1, "0 (desmejora)", "0 (al día)"),
+                         pd.Series(ini).astype("Int64").astype(str).to_numpy())))
+        base = pd.DataFrame({"credito": c["credito"].to_numpy(), "en_corte": en_corte, "saldo_corte": saldo,
+                             "supervisor": c["supervisor"].to_numpy(), "tipo_credito": c["tipo_credito"].to_numpy(),
+                             "tipo_legal": c["tipo_legal"].to_numpy(), "tipo_cartera": c["tipo_cartera"].to_numpy(),
+                             "fila": fila})
+        g = promesas[promesas["fecha_gestion"].dt.normalize() <= t] if not promesas.empty else promesas
+        if g.empty:
+            continue
+        ult = g.drop_duplicates("credito", keep="last")
+        ult_mes = g[g["del_mes"]].drop_duplicates("credito", keep="last")
+        def agg(x):
+            return x.groupby("credito", as_index=False).agg(monto=("monto", "sum"), n_promesas=("monto", "size"))
+        por_estado = {
+            "Vencidas": agg(g[g["del_mes"] & (g["fecha_promesa"] < t)]),
+            "Vigentes": agg(ult[ult["fecha_promesa"] >= t]),
+            "Promesado del mes": agg(ult_mes),
+            "Del día": agg(g[g["fecha_gestion"].dt.normalize() == t]),
+        }
+        for estado, x in por_estado.items():
+            if x.empty:
+                continue
+            m = x.merge(base, on="credito", how="inner")
+            if estado == "Vigentes":
+                m = m[m["en_corte"]]  # como PR_MC_DTEPP: solo créditos en la foto del día
+            if m.empty:
+                continue
+            m = m.assign(f_reporte=t, estado=estado)
+            partes.append(m)
+    cols = ["f_reporte", "credito", "estado", "monto", "n_promesas", "saldo_corte", "supervisor", "tipo_credito",
+            "tipo_legal", "tipo_cartera", "fila"]
+    if not partes:
+        return pd.DataFrame(columns=cols)
+    return pd.concat(partes, ignore_index=True)[cols]
+
+
 def por_credito_dia(cartera: pd.DataFrame, gestiones: pd.DataFrame) -> pd.DataFrame:
     """Para cada fila (credito, f_reporte) de la cartera: gestiones del día y acumulados del mes hasta esa fecha.
     gestiones: ya marcadas y preparadas (marcar + preparar)."""
