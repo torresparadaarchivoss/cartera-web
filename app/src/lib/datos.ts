@@ -89,6 +89,15 @@ export async function flujoPorDimension(fecha: string, dim: Dimension, f: Filtro
   return lanzar(await supabase.rpc('cartera_flujo_por_dimension', { p_fecha: fecha, p_dimension: dim, ...args(f) }))
 }
 
+export interface Bucket0Desmejora {
+  desmejoran: number
+  sin_gestion: number
+}
+
+export async function bucket0Desmejora(fecha: string, f: Filtros): Promise<Bucket0Desmejora> {
+  return lanzar(await supabase.rpc('cartera_bucket0_desmejora', { p_fecha: fecha, ...args(f) }))
+}
+
 export async function flujoMes(fecha: string, f: Filtros): Promise<FlujoMes> {
   return lanzar(await supabase.rpc('cartera_gestion_mes', { p_fecha: fecha, ...args(f) }))
 }

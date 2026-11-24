@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Data } from 'plotly.js'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
-import type { FlujoMes, Stock } from '../lib/datos'
+import type { Bucket0Desmejora, FlujoMes, Stock } from '../lib/datos'
 import { dinero, entero, fecha, pct, pp } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo } from '../components/Bloques'
 
@@ -13,17 +13,24 @@ export default function Resumen() {
   const [hoy, setHoy] = useState<Stock | null>(null)
   const [ini, setIni] = useState<Stock | null>(null)
   const [flujo, setFlujo] = useState<FlujoMes | null>(null)
+  const [b0, setB0] = useState<Bucket0Desmejora | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!corte || !fechaBase || !filtros) return
     let vigente = true
-    Promise.all([datos.stock(corte, filtros), datos.stock(fechaBase, filtros), datos.flujoMes(corte, filtros)])
-      .then(([h, i, f]) => {
+    Promise.all([
+      datos.stock(corte, filtros),
+      datos.stock(fechaBase, filtros),
+      datos.flujoMes(corte, filtros),
+      datos.bucket0Desmejora(corte, filtros),
+    ])
+      .then(([h, i, f, b]) => {
         if (!vigente) return
         setHoy(h)
         setIni(i)
         setFlujo(f)
+        setB0(b)
         setError(null)
       })
       .catch((e: Error) => vigente && setError(e.message))
@@ -34,7 +41,7 @@ export default function Resumen() {
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
-  if (!hoy || !ini || !flujo || !corte || !fechaBase) return <p className="vacio">Cargando el mes…</p>
+  if (!hoy || !ini || !flujo || !b0 || !corte || !fechaBase) return <p className="vacio">Cargando el mes…</p>
   if (hoy.cuentas === 0) return <Nota tipo="alerta" texto="No hay cuentas activas con los filtros seleccionados." />
 
   const variacion = ini.saldo ? hoy.saldo / ini.saldo - 1 : null
@@ -79,10 +86,12 @@ export default function Resumen() {
         <Kpi etiqueta="Contactabilidad" valor={pct(contactabilidad)} detalle={`${entero(flujo.creditos_contacto)} con contacto`} />
         <Kpi etiqueta="RPC" valor={pct(tasaRpc)} detalle={`${entero(flujo.creditos_rpc)} cuentas`} />
         <Kpi etiqueta="Promesas" valor={entero(flujo.creditos_promesa)} detalle={`${pct(tasaPromesa)} de las RPC`} tono="bueno" />
+        <Kpi etiqueta="Bucket 0 que desmejoran sin gestión" valor={entero(b0.sin_gestion)}
+          detalle={`de ${entero(b0.desmejoran)} que pasaron a mora`} tono="malo" />
       </FilaKpi>
       <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
         layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
-      <Nota tipo="alerta" texto="Pendiente de esta versión: promesas en vivo, bucket 0 que desmejoran sin gestión y evolución de mora de la cohorte." />
+      <Nota tipo="alerta" texto="Pendiente de esta versión: promesas en vivo y evolución de mora de la cohorte." />
     </>
   )
 }

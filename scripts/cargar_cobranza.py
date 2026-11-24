@@ -73,12 +73,20 @@ SELECT UPPER(REPLACE(id_concatenado, ' ', ''))  AS codigo
 FROM dbo.t_mccollect_codigos_gestiones
 """
 
+# Mora de inicio de mes: último cierre de loantape anterior al día 1 (services/loantape.py + loantape_queries.py).
+# Solo se traen crédito, JUR y días de mora: ningún dato personal del deudor sale de la base de origen.
+SQL_CIERRES = ("SELECT * FROM OPENQUERY([loantape], 'SELECT rmaster_codigo, MAX(f_reporte) AS f_reporte, "
+               "COUNT(*) AS filas FROM informix.loantape_his_musv GROUP BY rmaster_codigo')")
+SQL_MORA_LOANTAPE = ("SELECT * FROM OPENQUERY([loantape], 'SELECT comprobante, numero, codubidoc, diasmora "
+                     "FROM informix.loantape_his_musv WHERE rmaster_codigo = {codigo}')")
+
 LIMITES_BUCKET = (0, 30, 60, 90, 120, 150)  # igual que config.py del Streamlit
 COLUMNAS = ["credito", "f_reporte", "saldo", "saldo_vencido", "dias_mora", "bucket_actual",
             "supervisor", "gestor", "tipo_credito", "tipo_legal", "tipo_cartera"]
 COLUMNAS_GESTION = ["gestiones_dia", "contacto_dia", "rpc_dia", "promesa_dia", "monto_promesa_dia",
                     "gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum",
                     "monto_promesa_acum"]
+COLUMNAS_MORA = ["bucket_inicial"]  # nulo = sin referencia (JUR o sin cierre de loantape)
 
 
 def bucket(dias) -> int | None:
@@ -143,6 +151,25 @@ def leer_gestion(ini: dt.date, fin: dt.date, cartera: pd.DataFrame) -> pd.DataFr
     return out[["credito", "f_reporte"] + COLUMNAS_GESTION]
 
 
+def leer_mora_inicial(ini: dt.date) -> pd.DataFrame:
+    """bucket_inicial por crédito: mora del cierre de loantape anterior al día 1. JUR queda sin referencia (nulo)."""
+    with conexion_origen() as con:
+        cierres = pd.read_sql_query(SQL_CIERRES, con)
+        cierres["f_reporte"] = pd.to_datetime(cierres["f_reporte"], errors="coerce")
+        cierres["rmaster_codigo"] = pd.to_numeric(cierres["rmaster_codigo"], errors="coerce")
+        cierres = cierres.dropna(subset=["rmaster_codigo", "f_reporte"]).sort_values("f_reporte")
+        cierres = cierres[cierres["f_reporte"] < pd.Timestamp(ini)]
+        if cierres.empty:
+            return pd.DataFrame(columns=["credito", "bucket_inicial"]).astype({"bucket_inicial": "Int64"})
+        codigo = int(cierres.iloc[-1]["rmaster_codigo"])
+        lt = pd.read_sql_query(SQL_MORA_LOANTAPE.format(codigo=codigo), con)
+    lt["credito"] = lt.pop("comprobante").astype(str).str.strip() + " " + lt.pop("numero").astype(str).str.strip()
+    jur = lt["codubidoc"].fillna("").astype(str).str.strip().str.upper().eq("JUR")
+    lt = lt.loc[~jur, ["credito", "diasmora"]]
+    lt["bucket_inicial"] = pd.array([bucket(x) for x in pd.to_numeric(lt["diasmora"], errors="coerce")], dtype="Int64")
+    return lt[["credito", "bucket_inicial"]].drop_duplicates("credito", keep="last").reset_index(drop=True)
+
+
 def _valor_sql(v):
     """Convierte un valor de pandas/numpy a algo que psycopg acepte; nulos → None."""
     if v is None or v is pd.NA or v is pd.NaT:
@@ -172,7 +199,7 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date) -> None:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
     with psycopg.connect(url, autocommit=False) as con:
         with con.cursor() as cur:
-            todas = COLUMNAS + COLUMNAS_GESTION
+            todas = COLUMNAS + COLUMNAS_GESTION + COLUMNAS_MORA
             cur.execute("create temp table stg_cobranza (like public.cobranza_diaria) on commit drop")
             cur.execute("alter table stg_cobranza drop column id, drop column cargado_en")
             with cur.copy(f"copy stg_cobranza ({', '.join(todas)}) from stdin") as cp:
@@ -212,6 +239,10 @@ def main() -> None:
         df = df.merge(gest, on=["credito", "f_reporte"], how="left", validate="one_to_one")
         for c in COLUMNAS_GESTION:
             df[c] = df[c].fillna(0).astype("int64" if c not in ("monto_promesa_dia", "monto_promesa_acum") else "float64")
+        print("Leyendo mora de inicio de mes (loantape)…")
+        mi = leer_mora_inicial(ini)
+        df = df.merge(mi, on="credito", how="left")
+        df["bucket_inicial"] = df["bucket_inicial"].astype("Int64")
         print(f"Gestiones del mes: {int(df['gestiones_dia'].sum()):,} en días con gestión.")
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
