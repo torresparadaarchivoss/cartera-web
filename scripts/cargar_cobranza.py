@@ -258,7 +258,8 @@ COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "sal
                    "tipo_credito", "tipo_legal", "tipo_cartera", "fila", "gestor", "top"]
 
 
-COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top"]
+COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top",
+                       "bucket_pago", "bucket_inicial"]
 
 
 def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame,

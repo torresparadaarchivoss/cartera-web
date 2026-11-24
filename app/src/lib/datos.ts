@@ -177,3 +177,65 @@ export async function flujoMes(fecha: string, f: Filtros): Promise<FlujoMes> {
 export async function serie(dim: Dimension, f: Filtros): Promise<PuntoSerie[]> {
   return lanzar(await supabase.rpc('cartera_serie', { p_dimension: dim, ...args(f) }))
 }
+
+// ----------------------------------------------------------------------------- Recuperación (0017)
+export type BucketRecuperacion = 'bucket_pago' | 'bucket_inicial'
+
+export interface FilaRecuperacion {
+  fila: string // '0'..'6', 'Legal', 'Sin mora', 'Sin referencia' o 'Total'
+  creditos: number
+  pagos: number
+  pagado: number
+}
+
+export async function recuperacionPorBucket(fecha: string, bucket: BucketRecuperacion, f: Filtros): Promise<FilaRecuperacion[]> {
+  return lanzar(await supabase.rpc('recuperacion_por_bucket', { p_fecha: fecha, p_bucket: bucket, ...args(f) }))
+}
+
+export interface PagoDia {
+  fecha: string
+  pagado_dia: number
+  pagado_acum: number
+}
+
+export async function recuperacionPagosDia(fecha: string, f: Filtros): Promise<PagoDia[]> {
+  return lanzar(await supabase.rpc('recuperacion_pagos_dia', { p_fecha: fecha, ...args(f) }))
+}
+
+export interface MetasRecuperacion {
+  metaBucket: Record<string, number>   // '0'..'6' → meta del mes (indicador recuperacion)
+  metaLegal: number | null             // suma de metas de canal (Recaudo legal) del mes
+}
+
+// Réplica de services/recaudo_legal.metas: meta por canal = suma de metas individuales de sus gestores si las hay;
+// si no, la meta del canal. La meta Legal es la suma de las metas de canal.
+export async function metasRecuperacion(periodo: string): Promise<MetasRecuperacion> {
+  const [mb, ml, lc] = await Promise.all([
+    supabase.from('metas_bucket').select('bucket, valor_meta').eq('periodo', periodo).eq('indicador', 'recuperacion'),
+    supabase.from('metas_legal').select('llave, indicador, valor_meta').eq('periodo', periodo),
+    supabase.from('legal_canal').select('gestor, canal').eq('periodo', periodo),
+  ])
+  for (const r of [mb, ml, lc]) if (r.error) throw new Error(r.error.message)
+
+  const metaBucket: Record<string, number> = {}
+  for (const r of mb.data ?? []) if (r.valor_meta !== null) metaBucket[String(r.bucket)] = Number(r.valor_meta)
+
+  const individual = new Map<string, number>()
+  const porCanal = new Map<string, number>()
+  for (const r of ml.data ?? []) {
+    if (r.valor_meta === null) continue
+    if (r.indicador === 'gestor') individual.set(r.llave, Number(r.valor_meta))
+    if (r.indicador === 'canal') porCanal.set(r.llave, Number(r.valor_meta))
+  }
+  const canalDe = new Map((lc.data ?? []).map((r) => [r.gestor, r.canal]))
+
+  let metaLegal: number | null = null
+  for (const canal of ['Embargo', 'Externo', 'Interno']) {
+    const gestores = [...individual.keys()].filter((g) => canalDe.get(g) === canal)
+    let meta: number | undefined
+    if (gestores.length) meta = gestores.reduce((a, g) => a + (individual.get(g) ?? 0), 0)
+    else meta = porCanal.get(canal)
+    if (meta !== undefined) metaLegal = (metaLegal ?? 0) + meta
+  }
+  return { metaBucket, metaLegal }
+}

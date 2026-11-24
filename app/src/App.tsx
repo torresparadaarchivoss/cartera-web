@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Resumen from './pages/Resumen'
 import Cartera from './pages/Cartera'
+import Recuperacion from './pages/Recuperacion'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -52,6 +53,7 @@ export default function App() {
           >
             <Route path="/" element={<Resumen />} />
             <Route path="/cartera" element={<Cartera />} />
+            <Route path="/recuperacion" element={<Recuperacion />} />
             <Route
               path="/parametros"
               element={

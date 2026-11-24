@@ -119,6 +119,7 @@ def promesas_filas(gestiones_mes: pd.DataFrame, gestiones_previas: pd.DataFrame,
 SIN_ASIGNAR = frozenset({"", "sin asignar"})
 FRACCION_CUENTAS_TOP = 0.60
 SIN_MORA = "Sin mora"
+SIN_REFERENCIA = "Sin referencia"
 
 
 def _bucket_txt(dias: pd.Series) -> pd.Series:
@@ -158,7 +159,8 @@ def ultimo_gestor(cartera: pd.DataFrame) -> pd.Series:
 def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFrame:
     """Pagos con los atributos de cartera del día del pago (réplica de calculations.enriquecer_pagos).
     Si ese día no hay registro del crédito, se toma el anterior más cercano y, si no hay, el siguiente."""
-    cols = ["supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top"]
+    cols = ["supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top", "bucket_actual",
+            "bucket_inicial"]
     p = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.normalize().astype("datetime64[ns]")).copy()
     c = cartera.assign(fecha=pd.to_datetime(cartera["f_reporte"]).dt.normalize().astype("datetime64[ns]"))
     c = c[["credito", "fecha"] + cols].sort_values(["fecha"], kind="stable")
@@ -173,6 +175,9 @@ def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFra
     for col in ("supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor"):
         out[col] = out[col].fillna("").astype(str)
     out["top"] = out["top"].fillna(False).astype(bool)
+    # Buckets del día del pago (0..6 o «Sin mora») y bucket inicial (0..6 o «Sin referencia»), como en Recuperación.
+    out["bucket_pago"] = out["bucket_actual"].astype("string").fillna(SIN_MORA).astype(str)
+    out["bucket_inicial"] = out["bucket_inicial"].astype("string").fillna(SIN_REFERENCIA).astype(str)
     return out.reset_index(drop=True)
 
 

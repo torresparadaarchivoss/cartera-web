@@ -6,6 +6,7 @@ import { fecha } from '../lib/formato'
 const PAGINAS = [
   { ruta: '/', etiqueta: 'Resumen gerencial' },
   { ruta: '/cartera', etiqueta: 'Cartera' },
+  { ruta: '/recuperacion', etiqueta: 'Recuperación' },
 ]
 
 const SIN_DATO = '(sin dato)'
