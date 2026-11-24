@@ -94,6 +94,28 @@ def _acumulados(gd: pd.DataFrame) -> pd.DataFrame:
               "promesa_acum", "monto_promesa_acum"]]
 
 
+def promesas_filas(gestiones_mes: pd.DataFrame, gestiones_previas: pd.DataFrame, inicio: pd.Timestamp) -> pd.DataFrame:
+    """Una fila por promesa (promesa == 1) del mes y del mes anterior con fecha de pago vigente.
+    gestiones_mes / gestiones_previas: ya marcadas y preparadas. del_mes = registrada desde el día 1 del mes."""
+    partes = []
+    for x, es_mes in ((gestiones_previas, False), (gestiones_mes, True)):
+        if x is None or x.empty:
+            continue
+        p = x[x["promesa"] == 1]
+        partes.append(pd.DataFrame({
+            "credito": p["credito"].to_numpy(),
+            "fecha_gestion": pd.to_datetime(p["fecha_actividad"]).to_numpy(),  # con hora: define la última promesa
+            "fecha_promesa": pd.to_datetime(p["fecha_promesa"]).dt.normalize().to_numpy(),
+            "monto": p["monto_promesa"].astype(float).to_numpy(),
+            "del_mes": (pd.to_datetime(p["fecha_actividad"]) >= inicio).to_numpy() if es_mes
+            else [False] * len(p),
+        }))
+    if not partes:
+        return pd.DataFrame(columns=["credito", "fecha_gestion", "fecha_promesa", "monto", "del_mes"])
+    out = pd.concat(partes, ignore_index=True)
+    return out.sort_values("fecha_gestion", kind="stable").reset_index(drop=True)
+
+
 def por_credito_dia(cartera: pd.DataFrame, gestiones: pd.DataFrame) -> pd.DataFrame:
     """Para cada fila (credito, f_reporte) de la cartera: gestiones del día y acumulados del mes hasta esa fecha.
     gestiones: ya marcadas y preparadas (marcar + preparar)."""

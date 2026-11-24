@@ -65,6 +65,9 @@ WHERE A.pais = 'El Salvador'
   AND A.fecha_actividad >= ? AND A.fecha_actividad < ?
 """
 
+# Promesas del mes anterior que siguen vigentes: gestiones con fecha de pago desde el día 1 de este mes.
+SQL_PROMESAS_PREVIAS = SQL_GESTIONES.rstrip() + "\n  AND A.fecha_promesa >= ?\n"
+
 SQL_CODIGOS = """
 SELECT UPPER(REPLACE(id_concatenado, ' ', ''))  AS codigo
      , LTRIM(RTRIM(tipo_cartera))                AS tipo_cartera
@@ -170,6 +173,27 @@ def leer_mora_inicial(ini: dt.date) -> pd.DataFrame:
     return lt[["credito", "bucket_inicial"]].drop_duplicates("credito", keep="last").reset_index(drop=True)
 
 
+def leer_promesas(ini: dt.date, fin: dt.date, cartera: pd.DataFrame) -> pd.DataFrame:
+    """Filas de promesa (mes y mes anterior) para la función cartera_promesas. Réplica de services/promesas.py."""
+    ini_prev = (ini - dt.timedelta(days=1)).replace(day=1)
+    with conexion_origen() as con:
+        mes = pd.read_sql_query(SQL_GESTIONES, con, params=[ini, fin])
+        prev = pd.read_sql_query(SQL_PROMESAS_PREVIAS, con, params=[ini_prev, ini, ini])
+        cat = pd.read_sql_query(SQL_CODIGOS, con)
+    cat["tipo_cartera"] = cat["tipo_cartera"].fillna("").astype(str)
+    for c in ("gestionada", "contacto", "rpc", "promesa"):
+        cat[c] = pd.to_numeric(cat[c], errors="coerce").fillna(0).astype(int)
+    cart = cartera.assign(f_reporte=pd.to_datetime(cartera["f_reporte"]))
+    listas = []
+    for raw in (prev, mes):
+        raw["fecha_actividad"] = pd.to_datetime(raw["fecha_actividad"], errors="coerce")
+        raw["fecha_promesa"] = pd.to_datetime(raw["fecha_promesa"], errors="coerce")
+        raw["usuario"] = raw["usuario"].fillna("").astype(str)
+        listas.append(raw if raw.empty else gc.preparar(gc.marcar(raw, cat, cart)))
+    previas, del_mes = listas
+    return gc.promesas_filas(del_mes, previas, pd.Timestamp(ini))
+
+
 def _valor_sql(v):
     """Convierte un valor de pandas/numpy a algo que psycopg acepte; nulos → None."""
     if v is None or v is pd.NA or v is pd.NaT:
@@ -193,7 +217,7 @@ def resumen(df: pd.DataFrame, ini: dt.date) -> None:
         print("Aviso: ningún registro tiene días de mora.")
 
 
-def cargar_supabase(df: pd.DataFrame, ini: dt.date) -> None:
+def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame) -> None:
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
     if not url:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
@@ -213,6 +237,11 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date) -> None:
                   {cambios},
                   cargado_en = now()
             """)
+            # Promesas: se reemplazan completas (mes y mes anterior).
+            cur.execute("delete from public.promesa")
+            with cur.copy("copy public.promesa (credito, fecha_gestion, fecha_promesa, monto, del_mes) from stdin") as cp:
+                for fila in promesas.itertuples(index=False):
+                    cp.write_row([_valor_sql(v) for v in fila])
             # Ventana de 1 mes: se borra lo anterior al mes cargado.
             cur.execute("delete from public.cobranza_diaria where f_reporte < %s", (ini,))
             cur.execute("analyze public.cobranza_diaria")
@@ -249,7 +278,9 @@ def main() -> None:
         return
     if df.empty:
         sys.exit("Nada que cargar; no se borró nada en Supabase.")
-    cargar_supabase(df, ini)
+    promesas = leer_promesas(ini, fin, df)
+    print(f"Promesas: {len(promesas):,} filas (mes y mes anterior).")
+    cargar_supabase(df, ini, promesas)
 
 
 if __name__ == "__main__":
