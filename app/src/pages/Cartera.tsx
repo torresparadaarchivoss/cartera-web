@@ -18,7 +18,7 @@ const DIMENSIONES: { etiqueta: string; valor: Dimension }[] = [
 
 // Colores por bucket 0..6, del verde al vino (components/theme.py COLOR_BUCKET).
 const COLOR_BUCKET = ['#3fa04e', '#8cc43f', '#f2c94c', '#f4a63c', '#ee7d4f', '#d9534a', '#c82a59']
-const ORDEN_BUCKET = ['0', '1', '2', '3', '4', '5', '6', 'Sin mora']
+const ORDEN_BUCKET = ['0', '1', '2', '3', '4', '5', '6', 'Legal', 'Sin mora']
 
 interface Fila {
   grupo: string
