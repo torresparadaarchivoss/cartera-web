@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import RecaudoLegalAdmin from '../components/RecaudoLegalAdmin'
 import { useDatos } from '../lib/contexto'
 import * as adm from '../lib/administracion'
 import type { Asignacion, Asueto, MetaBucket, MetaUsuario, TipoUsuario, Usuario } from '../lib/administracion'
@@ -9,7 +10,7 @@ import { Radios } from '../components/Selectores'
 // Pendiente: importar el catálogo desde el Excel de PRP, sincronizar usuarios desde las fuentes, parámetros de
 // comisión y coreografía, y recaudo legal (canal y meta por gestor).
 
-const SECCIONES = ['Usuarios', 'Asignación', 'Metas por usuario', 'Metas por bucket', 'Asuetos y presupuesto FPD'] as const
+const SECCIONES = ['Usuarios', 'Asignación', 'Metas por usuario', 'Metas por bucket', 'Recaudo legal', 'Asuetos y presupuesto FPD'] as const
 type Seccion = (typeof SECCIONES)[number]
 const DEPARTAMENTOS = ['Administrativa', 'Legal']
 
@@ -90,6 +91,9 @@ export default function Administracion() {
         <SeccionMetasUsuario periodo={periodo} usuarios={usuarios} asig={asig} onGuardado={(m) => setAviso(m)} />
       )}
       {seccion === 'Metas por bucket' && periodo && <SeccionMetasBucket periodo={periodo} onGuardado={(m) => setAviso(m)} />}
+      {seccion === 'Recaudo legal' && periodo && corte && (
+        <RecaudoLegalAdmin periodo={periodo} corte={corte} usuarios={usuarios} onGuardado={(m) => setAviso(m)} />
+      )}
       {seccion === 'Asuetos y presupuesto FPD' && <SeccionAsuetos onGuardado={(m) => setAviso(m)} />}
     </>
   )

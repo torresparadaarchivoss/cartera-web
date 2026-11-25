@@ -130,3 +130,46 @@ export async function parametrosComision(periodo: string): Promise<Record<string
   for (const f of filas) if (!(f.clave in salida)) salida[f.clave] = Number(f.valor)
   return salida
 }
+
+// Recaudo legal: canal por gestor (vigente: el del mes o el último registrado) y metas del mes por gestor o canal.
+export interface CanalGestor {
+  gestor: string
+  canal: string | null
+  periodo_origen: string
+}
+
+export interface MetaLegal {
+  llave: string
+  periodo: string
+  indicador: 'gestor' | 'canal'
+  valor_meta: number | null
+}
+
+export async function canalesLegal(periodo: string): Promise<CanalGestor[]> {
+  const filas = revisar(await supabase.from('legal_canal').select('gestor, canal, periodo').lte('periodo', periodo)
+    .order('periodo', { ascending: false })) as { gestor: string; canal: string; periodo: string }[]
+  const vistos = new Map<string, CanalGestor>()
+  for (const f of filas) if (!vistos.has(f.gestor)) vistos.set(f.gestor, { gestor: f.gestor, canal: f.canal, periodo_origen: f.periodo })
+  return [...vistos.values()]
+}
+
+export async function metasLegal(periodo: string): Promise<MetaLegal[]> {
+  return revisar(await supabase.from('metas_legal').select('llave, periodo, indicador, valor_meta').eq('periodo', periodo)) as MetaLegal[]
+}
+
+export async function guardarCanalesLegal(periodo: string, cambios: { gestor: string; canal: string }[]): Promise<void> {
+  if (!cambios.length) return
+  revisar(await supabase.from('legal_canal').upsert(cambios.map((c) => ({ gestor: c.gestor, periodo, canal: c.canal })),
+    { onConflict: 'gestor,periodo' }).select('gestor'))
+}
+
+export async function guardarMetasLegal(periodo: string, cambios: { llave: string; indicador: 'gestor' | 'canal'; valor: number | null }[]): Promise<void> {
+  for (const c of cambios) {
+    if (c.valor === null) {
+      revisar(await supabase.from('metas_legal').delete().eq('llave', c.llave).eq('periodo', periodo).eq('indicador', c.indicador).select('llave'))
+    } else {
+      revisar(await supabase.from('metas_legal').upsert({ llave: c.llave, periodo, indicador: c.indicador, valor_meta: c.valor },
+        { onConflict: 'llave,periodo,indicador' }).select('llave'))
+    }
+  }
+}
