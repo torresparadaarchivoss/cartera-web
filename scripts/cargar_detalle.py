@@ -21,6 +21,8 @@ GESTION = ["credito", "fecha_actividad", "usuario", "accion", "resultado", "cont
            "monto_promesa", "fecha_promesa"]
 CLIENTE = ["credito", "ciudad", "nombre_mod", "fecha_renov", "nombre_deudor", "edad", "genero", "salario",
            "ubicacion", "profesion", "dire_trabajo", "saldopagare", "ruta_domicilio", "ruta_trabajo", "f_cierre"]
+UBICACION = ["credito", "fecha_visita", "visitador", "resultado", "latitud", "longitud"]
+LAT, LON = (13.0, 14.6), (-90.3, -87.5)  # rango válido (services/visitas.py)
 VISITA = ["credito", "fecha_visita", "visitador", "accion", "resultado", "causa_no_pago", "parentesco", "num_fotos",
           "kilometros"]
 
@@ -56,6 +58,20 @@ def preparar_visita(v: pd.DataFrame) -> pd.DataFrame:
     return out.dropna(subset=["fecha_visita"])[VISITA]
 
 
+def preparar_ubicacion(v: pd.DataFrame) -> pd.DataFrame:
+    """Coordenadas válidas de cada visita (restringidas a administradores)."""
+    out = pd.DataFrame({
+        "credito": v["credito"].astype(str).str.strip(),
+        "fecha_visita": pd.to_datetime(v["fecha_visita"], errors="coerce"),
+        "visitador": v["visitador"].fillna("").astype(str),
+        "resultado": v["resultado"].fillna("").astype(str),
+        "latitud": pd.to_numeric(v["latitud"], errors="coerce"),
+        "longitud": pd.to_numeric(v["longitud"], errors="coerce"),
+    }).dropna(subset=["fecha_visita", "latitud", "longitud"])
+    ok = out["latitud"].between(*LAT) & out["longitud"].between(*LON)
+    return out[ok][UBICACION]
+
+
 def preparar_cliente(lt: pd.DataFrame) -> pd.DataFrame:
     """Datos personales del cierre de loantape: solo para la tabla restringida cliente_loantape."""
     out = lt.assign(credito=lt["credito"].astype(str).str.strip())
@@ -75,7 +91,7 @@ def _valor(v):
     return v
 
 
-def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame) -> None:
+def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, ubicacion: pd.DataFrame) -> None:
     import psycopg  # solo al escribir: el dry-run no lo necesita
 
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
@@ -86,6 +102,10 @@ def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame) -
             cur.execute("delete from public.gestion")
             with cur.copy(f"copy public.gestion ({', '.join(GESTION)}) from stdin") as cp:
                 for fila in gestion.itertuples(index=False):
+                    cp.write_row([_valor(v) for v in fila])
+            cur.execute("delete from public.visita_ubicacion")
+            with cur.copy(f"copy public.visita_ubicacion ({', '.join(UBICACION)}) from stdin") as cp:
+                for fila in ubicacion.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
             cur.execute("delete from public.cliente_loantape")
             with cur.copy(f"copy public.cliente_loantape ({', '.join(CLIENTE)}) from stdin") as cp:
@@ -114,13 +134,15 @@ def main() -> None:
     gestion = preparar_gestion(d.gestiones)
     visita = preparar_visita(d.visitas)
     cliente = preparar_cliente(d.loantape)
+    ubicacion = preparar_ubicacion(d.visitas)
     print(f"Gestiones: {len(gestion):,} filas (de {len(d.gestiones):,} leídas).")
     print(f"Visitas: {len(visita):,} filas (de {len(d.visitas):,} leídas).")
     print(f"Clientes (datos personales, acceso restringido): {len(cliente):,} filas.")
+    print(f"Visitas con coordenadas válidas (acceso restringido): {len(ubicacion):,} filas.")
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
         return
-    cargar(gestion, visita, cliente)
+    cargar(gestion, visita, cliente, ubicacion)
     print("Detalle cargado en Supabase (gestion y visita del mes).")
 
 
