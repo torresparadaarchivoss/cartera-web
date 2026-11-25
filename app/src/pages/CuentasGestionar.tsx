@@ -4,8 +4,8 @@ import * as datos from '../lib/datos'
 import type {
   ClienteDetalle, CuentaListado, GestionDetalle, UbicacionDetalle, VisitaDetalle, VistaCuentas,
 } from '../lib/datos'
-import { dinero, entero, fecha } from '../lib/formato'
-import { FilaKpi, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
+import { dinero, entero, fecha, pct } from '../lib/formato'
+import { FilaKpi, Kpi, Nota, Plot, Tabla, Titulo } from '../components/Bloques'
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
 import { useAuth } from '../lib/auth'
 import { descargarExcel, type Hoja } from '../lib/exportar'
@@ -136,11 +136,11 @@ export default function CuentasGestionar() {
     return { dom: tipoRuta(c?.ubicacion), trab: tipoRuta(c?.dire_trabajo) }
   }
 
-  const lista = useMemo(() => {
+  // Todos los filtros excepto la estrategia: el resumen de Cuentas Top se calcula sobre este conjunto.
+  const prefiltro = useMemo(() => {
     let x = base
     if (esAdmin && rutaDom.length) x = x.filter((c) => rutaDom.includes(rutasDe(c.credito).dom))
     if (esAdmin && rutaTrab.length) x = x.filter((c) => rutaTrab.includes(rutasDe(c.credito).trab))
-    if (estrategia === 'Cuentas Top') x = x.filter((c) => c.top)
     if (movs.length) x = x.filter((c) => movs.includes(c.movimiento))
     if (bIni.length) x = x.filter((c) => bIni.includes(c.origen))
     if (bAct.length) x = x.filter((c) => bAct.includes(c.destino))
@@ -151,7 +151,39 @@ export default function CuentasGestionar() {
     if (minSinGestion) x = x.filter((c) => c.dias_sin_gestion === null || c.dias_sin_gestion >= minSinGestion)
     if (buscar.trim()) x = x.filter((c) => c.credito.toLowerCase().includes(buscar.trim().toLowerCase()))
     return x
-  }, [base, estrategia, movs, bIni, bAct, prios, estados, visita, minSinGestion, buscar, esAdmin, rutaDom, rutaTrab, clientePorCredito])
+  }, [base, movs, bIni, bAct, prios, estados, visita, minSinGestion, buscar, esAdmin, rutaDom, rutaTrab, clientePorCredito])
+
+  const lista = useMemo(
+    () => (estrategia === 'Cuentas Top' ? prefiltro.filter((c) => c.top) : prefiltro),
+    [prefiltro, estrategia],
+  )
+
+  // Cuentas Top por bucket del día (services/detalle.resumen_top del Streamlit).
+  const resumenTop = useMemo(() => {
+    const con = prefiltro.filter((c) => c.saldo_dia > 0 && /^[0-6]$/.test(c.destino))
+    const filas = ['0', '1', '2', '3', '4', '5', '6'].map((b) => {
+      const del = con.filter((c) => c.destino === b)
+      const top = del.filter((c) => c.top)
+      const saldoTop = top.reduce((a, c) => a + c.saldo_dia, 0)
+      const saldoBucket = del.reduce((a, c) => a + c.saldo_dia, 0)
+      return {
+        b, cuentasTop: top.length, saldoTop, pctSaldo: saldoBucket ? saldoTop / saldoBucket : null,
+        pctCuentas: del.length ? top.length / del.length : null,
+        gest: top.filter((c) => c.gestiones_mes > 0).length, cont: top.filter((c) => c.contacto_mes > 0).length,
+        prom: top.filter((c) => c.promesa_mes > 0).length, vis: top.filter((c) => c.visitas_mes > 0).length,
+      }
+    }).filter((f) => con.some((c) => c.destino === f.b))
+    const suma = (k: 'cuentasTop' | 'saldoTop' | 'gest' | 'cont' | 'prom' | 'vis') => filas.reduce((a, f) => a + f[k], 0)
+    const totSaldo = con.reduce((a, c) => a + c.saldo_dia, 0)
+    const tot = {
+      cuentasTop: suma('cuentasTop'), saldoTop: suma('saldoTop'),
+      pctSaldo: totSaldo ? suma('saldoTop') / totSaldo : null,
+      pctCuentas: con.length ? suma('cuentasTop') / con.length : null,
+      gest: suma('gest'), cont: suma('cont'), prom: suma('prom'), vis: suma('vis'),
+    }
+    return { filas, tot }
+  }, [prefiltro])
+
 
   // Gestiones y visitas de las cuentas listadas (solo cuando hay pocas, para no traer miles de filas).
   useEffect(() => {
@@ -298,6 +330,22 @@ export default function CuentasGestionar() {
         <Kpi etiqueta="Con promesa" valor={entero(conPromesa.length)} detalle={dinero(conPromesa.reduce((a, c) => a + c.monto_prometido, 0))} tono="bueno" />
         <Kpi etiqueta="Visitadas" valor={entero(visitadas)} detalle={`${entero(vis.length)} visitas`} />
       </FilaKpi>
+
+      {estrategia === 'Cuentas Top' && resumenTop.filas.length > 0 && (
+        <div className="dc-tarjeta">
+          <Titulo texto={`Cuentas Top por bucket al ${fecha(corte)}`} />
+          <Tabla titulo="" etiquetaFila="Bucket del día"
+            cabeceras={[
+              { etiqueta: 'Cuentas Top', formato: entero }, { etiqueta: 'Saldo Top', formato: (x) => dinero(x) },
+              { etiqueta: '% del saldo', formato: (x) => pct(x) }, { etiqueta: '% de cuentas', formato: (x) => pct(x) },
+              { etiqueta: 'Gestionadas', formato: entero }, { etiqueta: 'Con contacto', formato: entero },
+              { etiqueta: 'Con promesa', formato: entero }, { etiqueta: 'Visitadas', formato: entero },
+            ]}
+            filas={resumenTop.filas.map((f) => ({ etiqueta: f.b, valores: [f.cuentasTop, f.saldoTop, f.pctSaldo, f.pctCuentas, f.gest, f.cont, f.prom, f.vis] }))}
+            total={{ etiqueta: 'Total', valores: [resumenTop.tot.cuentasTop, resumenTop.tot.saldoTop, resumenTop.tot.pctSaldo, resumenTop.tot.pctCuentas, resumenTop.tot.gest, resumenTop.tot.cont, resumenTop.tot.prom, resumenTop.tot.vis] }} />
+          <p style={{ fontSize: 12 }}>Cuentas Top: 60 % del saldo de cada bucket. % del saldo y % de cuentas: sobre las cuentas del listado con saldo en ese bucket.</p>
+        </div>
+      )}
 
       <div className="dc-tarjeta">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
