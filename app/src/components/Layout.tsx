@@ -8,7 +8,7 @@ import { MultiSelect, SelectBox } from './Selectores'
 const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { ruta: '/', etiqueta: 'Resumen gerencial' },
   { ruta: '/cartera', etiqueta: 'Cartera' },
-  { etiqueta: 'Roll rates' },
+  { ruta: '/roll-rates', etiqueta: 'Roll rates' },
   { etiqueta: 'Rodamiento real' },
   { etiqueta: 'Gestión de cobros' },
   { etiqueta: 'Coreografías de gestión' },

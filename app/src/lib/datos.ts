@@ -271,3 +271,16 @@ export async function recaudoLegalBase(fecha: string): Promise<CreditoLegal[]> {
 export async function recaudoLegalVigentes(fecha: string): Promise<{ credito: string; monto: number }[]> {
   return lanzar(await supabase.rpc('recaudo_legal_vigentes', { p_fecha: fecha }))
 }
+
+// ----------------------------------------------------------------------------- Roll rates (0019)
+export interface CeldaRoll {
+  origen: string   // '0'..'6' o 'Sin referencia'
+  destino: string  // '0'..'6' o 'Sin registro'
+  creditos: number
+  saldo_base: number
+  saldo_obs: number
+}
+
+export async function rollRatesGrilla(fecha: string, f: Filtros): Promise<CeldaRoll[]> {
+  return lanzar(await supabase.rpc('roll_rates_grilla', { p_fecha: fecha, ...args(f) }))
+}

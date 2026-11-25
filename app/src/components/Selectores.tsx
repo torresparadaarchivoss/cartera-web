@@ -122,3 +122,26 @@ export function SelectBox<T extends string>({ etiqueta, ayuda, opciones, valor, 
     </div>
   )
 }
+
+// Radios horizontales (como st.radio horizontal).
+export function Radios<T extends string>({ etiqueta, opciones, valor, onChange }: {
+  etiqueta: string
+  opciones: T[]
+  valor: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="st-campo">
+      <div className="st-etiqueta">{etiqueta}</div>
+      <div className="st-radios">
+        {opciones.map((o) => (
+          <label key={o} className="st-radio">
+            <input type="radio" checked={o === valor} onChange={() => onChange(o)} />
+            <span className="punto-radio" />
+            {o}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}

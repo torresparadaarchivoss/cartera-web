@@ -209,3 +209,9 @@ a.radio:hover { background: #f0f2f6; }
 .st-caja:hover { border-color: #389848; background: #f0f2f6; }
 .st-caja.abierta { background: #fff; }
 .st-chip { background: #389848; }
+.st-radios { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; min-height: 38px; }
+.st-radio { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #31333f; cursor: pointer; }
+.st-radio input { position: absolute; opacity: 0; width: 0; height: 0; }
+.punto-radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #c9ccd6; position: relative; }
+.st-radio input:checked + .punto-radio { border-color: #389848; }
+.st-radio input:checked + .punto-radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: #389848; }
