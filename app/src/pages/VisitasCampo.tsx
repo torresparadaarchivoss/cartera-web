@@ -46,7 +46,10 @@ export default function VisitasCampo() {
   const [periodo, setPeriodo] = useState<Periodo>(PERIODOS[0])
   const [visitadores, setVisitadores] = useState<string[]>([])
   const [top, setTop] = useState<TopOpc>('Todas')
-  const [agrupacion] = useState<'Visitador'>('Visitador')
+  const [agrupacion, setAgrupacion] = useState<'Visitador' | 'Supervisor'>('Visitador')
+  const [buckets, setBuckets] = useState<string[]>([])
+  // Cartera del día de cada visita: bucket de mora y supervisor (como el Streamlit).
+  const [carteraDia, setCarteraDia] = useState<Map<string, { bucket: string; supervisor: string }> | null>(null)
   const [visitas, setVisitas] = useState<VisitaDetalle[] | null>(null)
   const [ubicaciones, setUbicaciones] = useState<UbicacionDetalle[]>([])
   const [cuentas, setCuentas] = useState<CuentaListado[] | null>(null)
@@ -75,6 +78,25 @@ export default function VisitasCampo() {
   }, [esAdmin])
 
   useEffect(() => {
+    if (!visitas) return
+    let vigente = true
+    const creditos = [...new Set(visitas.map((v) => v.credito))]
+    datos.carteraDeCreditos(creditos)
+      .then((filas) => {
+        if (!vigente) return
+        const m = new Map<string, { bucket: string; supervisor: string }>()
+        for (const f of filas) {
+          m.set(`${f.credito}|${f.f_reporte}`, { bucket: f.bucket_actual === null ? 'Sin dato' : String(f.bucket_actual), supervisor: f.supervisor || 'Sin dato' })
+        }
+        setCarteraDia(m)
+      })
+      .catch((e: Error) => vigente && setError(e.message))
+    return () => {
+      vigente = false
+    }
+  }, [visitas])
+
+  useEffect(() => {
     if (!corte || !filtros) return
     let vigente = true
     Promise.all([datos.cuentasListado(corte, 'cohorte', filtros), datos.cuentasListado(corte, 'activa', filtros)])
@@ -100,12 +122,13 @@ export default function VisitasCampo() {
       if (periodo === PERIODOS[1] && dia !== corte) return false
       if (!cuentaPorCredito.has(v.credito)) return false
       if (visitadores.length && !visitadores.includes(v.visitador)) return false
+      if (buckets.length && !buckets.includes(carteraDia?.get(`${v.credito}|${dia}`)?.bucket ?? 'Sin dato')) return false
       const c = cuentaPorCredito.get(v.credito)
       if (top === 'Solo cuentas Top' && !c?.top) return false
       if (top === 'Sin cuentas Top' && c?.top) return false
       return true
     })
-  }, [visitas, corte, cuentas, cuentaPorCredito, periodo, visitadores, top])
+  }, [visitas, corte, cuentas, cuentaPorCredito, periodo, visitadores, top, buckets, carteraDia])
 
   const creditosVisitados = useMemo(() => new Set(visitasFiltradas.map((v) => v.credito)), [visitasFiltradas])
 
@@ -128,9 +151,12 @@ export default function VisitasCampo() {
   const promesas = v.filter((x) => esPromesa(x.resultado)).length
   const rango = periodo === PERIODOS[1] ? `el ${fecha(corte)}` : `del ${fecha(fechaBase)} al ${fecha(corte)}`
 
-  // Tabla por visitador (agrupación única por ahora).
+  // Tabla por visitador o por supervisor (de la cartera del día de la visita).
+  const claveGrupo = (x: VisitaDetalle) => (agrupacion === 'Supervisor'
+    ? carteraDia?.get(`${x.credito}|${x.fecha_visita.slice(0, 10)}`)?.supervisor ?? 'Sin dato'
+    : x.visitador)
   const porVisitador = new Map<string, VisitaDetalle[]>()
-  for (const x of v) porVisitador.set(x.visitador, [...(porVisitador.get(x.visitador) ?? []), x])
+  for (const x of v) porVisitador.set(claveGrupo(x), [...(porVisitador.get(claveGrupo(x)) ?? []), x])
   const grupos = [...porVisitador.entries()].sort((a, b) => b[1].length - a[1].length)
   const filaGrupo = (xs: VisitaDetalle[]) => {
     const creditos = new Set(xs.map((x) => x.credito)).size
@@ -206,6 +232,8 @@ export default function VisitasCampo() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
           <MultiSelect etiqueta="Visitador" opciones={visitadoresOpc} valor={visitadores} onChange={setVisitadores} placeholder="Todos los visitadores" />
+          <MultiSelect etiqueta="Bucket de mora (día de la visita)" opciones={['0', '1', '2', '3', '4', '5', '6', 'Sin dato']} valor={buckets} onChange={setBuckets} placeholder="Todos los buckets" />
+          <Radios etiqueta="Agrupar por" opciones={['Visitador', 'Supervisor'] as const} valor={agrupacion} onChange={setAgrupacion} />
           <SelectBox etiqueta="Cuentas Top" opciones={TOP.map((t) => ({ valor: t, etiqueta: t }))} valor={top} onChange={setTop} />
         </div>
       </div>

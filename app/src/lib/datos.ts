@@ -518,10 +518,10 @@ export function pagosMes(): Promise<{ credito: string; fecha: string; pago: numb
 
 export function carteraDeCreditos(creditos: string[]): Promise<{
   credito: string; f_reporte: string; saldo: number; saldo_vencido: number | null; valor_cuota: number | null
-  due_inicio_mes: number | null; tipo_cartera: string; tipo_legal: string
+  due_inicio_mes: number | null; tipo_cartera: string; tipo_legal: string; bucket_actual: number | null; supervisor: string
 }[]> {
   return porLotes(creditos, 'cobranza_diaria',
-    'credito, f_reporte, saldo, saldo_vencido, valor_cuota, due_inicio_mes, tipo_cartera, tipo_legal', 'f_reporte')
+    'credito, f_reporte, saldo, saldo_vencido, valor_cuota, due_inicio_mes, tipo_cartera, tipo_legal, bucket_actual, supervisor', 'f_reporte')
 }
 
 // Coreografías de gestión (calculadas en la carga con el motor del Streamlit: scripts/cargar_coreografias.py).
