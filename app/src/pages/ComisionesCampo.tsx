@@ -189,7 +189,7 @@ export default function ComisionesCampo() {
             <button className="boton" onClick={() => setVerComision((v) => !v)}>{verComision ? 'Ocultar' : 'Mostrar'}</button>
           </div>
           {filas.length === 0 ? <Nota tipo="alerta" texto="Sin motorizados en este equipo." /> : (
-            <div style={{ overflow: 'auto' }}>
+            <div className="desplazable">
               <table className="dc-tabla">
                 <thead>
                   <tr>
