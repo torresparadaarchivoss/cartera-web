@@ -281,3 +281,27 @@ def por_credito_dia(cartera: pd.DataFrame, gestiones: pd.DataFrame) -> pd.DataFr
     for c in ("gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum", "monto_promesa_acum"):
         out[c] = out[c].fillna(0)
     return out.sort_values(["credito", "f_reporte"]).reset_index(drop=True)
+
+
+def estado_cuenta(cartera: pd.DataFrame) -> dict:
+    """Réplica de services/calculations (estado de cobranza, rango de intentos y prioridad acumulados del mes)."""
+    n = cartera["gestiones_acum"].fillna(0)
+    contacto = cartera["contacto_acum"].fillna(0)
+    promesa = cartera["promesa_acum"].fillna(0)
+    rpc = cartera["rpc_acum"].fillna(0)
+    estado = np.select(
+        [n == 0, contacto == 0, (contacto == 1) & (promesa == 0), promesa == 1],
+        ["Sin Gestión", "Gestión Sin Contacto", "Contacto Sin Promesa", "Con Promesa"], default="Otro")
+    rango = np.select(
+        [n == 0, n <= 10, n <= 20, n <= 30],
+        ["0. Sin Gestión", "A. Hasta 10 Intentos", "B. Hasta 20 Intentos", "C. Hasta 30 Intentos"],
+        default="D. Más de 30 Intentos")
+    mora = pd.to_numeric(cartera["dias_mora"], errors="coerce")
+    critico = (mora > 90).fillna(False).to_numpy()
+    b_ini = cartera["bucket_inicial"].astype("Float64")
+    b_act = cartera["bucket_actual"].astype("Float64")
+    riesgo = (b_act > b_ini).fillna(False).to_numpy()
+    prioridad = np.select(
+        [critico & (n == 0).to_numpy(), critico & (rpc == 0).to_numpy(), (promesa == 1).to_numpy(), riesgo],
+        ["Critico Sin Gestion", "Critico Sin Contacto", "Seguimiento Promesa", "Riesgo"], default="Normal")
+    return {"estado_cobranza_acum": estado, "rango_intentos_acumulado": rango, "prioridad_acumulada": prioridad}

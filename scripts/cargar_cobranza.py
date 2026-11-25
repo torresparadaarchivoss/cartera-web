@@ -259,6 +259,8 @@ COLUMNAS_ESTADO = ["f_reporte", "credito", "estado", "monto", "n_promesas", "sal
                    "tipo_credito", "tipo_legal", "tipo_cartera", "fila", "gestor", "top"]
 
 
+COLUMNAS_ESTADO_CUENTA = ["top", "estado_cobranza_acum", "prioridad_acumulada", "rango_intentos_acumulado"]
+
 COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito", "tipo_legal", "tipo_cartera", "gestor", "top",
                        "bucket_pago", "bucket_inicial", "canal"]
 
@@ -270,7 +272,7 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, esta
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
     with psycopg.connect(url, autocommit=False) as con:
         with con.cursor() as cur:
-            todas = COLUMNAS + COLUMNAS_GESTION + COLUMNAS_MORA + COLUMNAS_PAGO
+            todas = COLUMNAS + COLUMNAS_GESTION + COLUMNAS_MORA + COLUMNAS_PAGO + COLUMNAS_ESTADO_CUENTA
             cur.execute("create temp table stg_cobranza (like public.cobranza_diaria) on commit drop")
             cur.execute("alter table stg_cobranza drop column id, drop column cargado_en")
             with cur.copy(f"copy stg_cobranza ({', '.join(todas)}) from stdin") as cp:
@@ -339,6 +341,9 @@ def main() -> None:
         mi = leer_mora_inicial(ini)
         df = df.merge(mi, on="credito", how="left")
         df["bucket_inicial"] = df["bucket_inicial"].astype("Int64")
+        df["top"] = gc.marcar_top(df).astype(bool)
+        for k, v in gc.estado_cuenta(df).items():
+            df[k] = v
         print(f"Gestiones del mes: {int(df['gestiones_dia'].sum()):,} en días con gestión.")
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
@@ -349,7 +354,6 @@ def main() -> None:
         pagos_raw = pd.read_sql_query(SQL_PAGOS, con, params=[ini, fin])
     pagos_raw["fecha"] = pd.to_datetime(pagos_raw["fecha"]).dt.normalize()
     pagos_raw["pago"] = pd.to_numeric(pagos_raw["pago"], errors="coerce").fillna(0.0)
-    df["top"] = gc.marcar_top(df)
     df["gestor_mes"] = df["credito"].map(gc.ultimo_gestor(df))
     pagos_enr = gc.pagos_enriquecidos(pagos_raw, df)
     pagos_enr["gestor"] = pagos_enr["credito"].map(gc.ultimo_gestor(df)).where(lambda x: x.notna(), pagos_enr["gestor"])
