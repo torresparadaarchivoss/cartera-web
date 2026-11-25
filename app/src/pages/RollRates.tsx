@@ -5,12 +5,16 @@ import * as datos from '../lib/datos'
 import type { CeldaRoll } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS } from '../components/Bloques'
+import { TablaEvolucion } from '../components/TablaEvolucion'
 import { Radios } from '../components/Selectores'
+import { evolucion } from '../lib/evolucion'
 
 // Roll rates (modules/roll_rates.py): cohorte congelada del primer día, matriz de transición y resumen por bucket.
 // Pendiente: evolución diaria de la cohorte y cumplimiento de metas por bucket (metas_bucket de mora).
 
 const MEDIDAS = ['% del saldo base', '% de cuentas', 'Saldo base', 'Cuentas', 'Saldo observado'] as const
+const FORMATOS = ['Evolución', 'Matriz'] as const
+type Formato = (typeof FORMATOS)[number]
 type Medida = (typeof MEDIDAS)[number]
 const ORIGENES = ['0', '1', '2', '3', '4', '5', '6'] as const
 const DESTINOS = [...ORIGENES, 'Sin registro'] as const
@@ -60,6 +64,7 @@ function sumar(celdas: CeldaRoll[]): Resumen {
 export default function RollRates() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [medida, setMedida] = useState<Medida>('% del saldo base')
+  const [formato, setFormato] = useState<Formato>('Evolución')
   const [celdas, setCeldas] = useState<CeldaRoll[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -88,6 +93,14 @@ export default function RollRates() {
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
   if (!vista || !corte || !fechaBase) return <p className="vacio">Cargando la cohorte…</p>
+  const cuentasMedida = medida.includes('cuenta') || medida === 'Cuentas'
+  const celdasMov = vista.ref.filter((c) => c.origen !== 'Sin referencia').map((c) => ({
+    origen: c.origen, movimiento: movimiento(c.origen, c.destino), creditos: c.creditos, saldo: c.saldo_base, saldoObs: c.saldo_obs,
+  }))
+  const evoBloque = evolucion(celdasMov, [...ORIGENES], ['Mejora', 'Mantiene', 'Desmejora'],
+    ['Mejora', 'Mantiene', 'Desmejora', 'Sin registro'], medida, { '0': 'Mejora', '6': 'Desmejora' })
+  const evoColor = evolucion(celdasMov, [...ORIGENES], ['Mejora', 'Mantiene', 'Desmejora'],
+    ['Mejora', 'Mantiene', 'Desmejora', 'Sin registro'], cuentasMedida ? '% de cuentas' : '% del saldo base', { '0': 'Mejora', '6': 'Desmejora' })
 
   const { ref, total, porOrigen, sinRef } = vista
   if (total.cuentas === 0 && sinRef.cuentas === 0) {
@@ -158,34 +171,53 @@ export default function RollRates() {
           detalle={variacion !== null ? `${pct(variacion)} frente al saldo base` : undefined} tono="info" />
       </FilaKpi>
 
-      <Titulo texto={`Matriz de transición al ${fecha(corte)} · ${medida.toLowerCase()}`} />
       <div className="dc-tarjeta">
-        <div style={{ marginBottom: 8 }}>
-          <Radios etiqueta="Matriz en" opciones={[...MEDIDAS]} valor={medida} onChange={setMedida} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end', marginBottom: 8 }}>
+          <Radios etiqueta="Medida" opciones={[...MEDIDAS]} valor={medida} onChange={setMedida} />
+          <Radios etiqueta="Formato de tabla" opciones={[...FORMATOS]} valor={formato} onChange={setFormato} />
         </div>
-        <table className="dc-tabla">
-          <thead>
-            <tr>
-              <th>Bucket inicial \ en la fecha</th>
-              {DESTINOS.map((d) => <th key={d}>{d}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {ORIGENES.map((o) => (
-              <tr key={o}>
-                <td>{o}</td>
-                {DESTINOS.map((d) => {
-                  const v = valorCelda(o, d)
-                  return <td key={d} style={celdaEstilo(v.base, v.color)}>{v.texto}</td>
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p style={{ fontSize: 12, marginTop: 8 }}>
-          Filas: bucket inicial. Columnas: bucket en la fecha de seguimiento. Verde mejora, gris permanece, rojo deteriora,
-          amarillo sin registro. En % cada fila suma 100 %. Saldo observado usa el color del saldo base.
-        </p>
+        {formato === 'Evolución' ? (
+          <>
+            <Titulo texto={`Evolución por bucket inicial al ${fecha(corte)} · ${medida.toLowerCase()}`} />
+            <TablaEvolucion
+              filas={evoBloque.filas}
+              total={evoBloque.total}
+              colorFilas={evoColor.filas}
+              columnas={['Mejora', 'Mantiene', 'Desmejora']}
+              medida={medida}
+            />
+            <p style={{ fontSize: 12, marginTop: 8 }}>
+              Filas: bucket inicial. Porcentajes sobre el total de la fila (incluye «Sin registro»). «—» en mejora del bucket 0 y deterioro del bucket 6.
+            </p>
+          </>
+        ) : (
+          <>
+            <Titulo texto={`Matriz de transición al ${fecha(corte)} · ${medida.toLowerCase()}`} />
+            <table className="dc-tabla">
+              <thead>
+                <tr>
+                  <th>Bucket inicial \ en la fecha</th>
+                  {DESTINOS.map((d) => <th key={d}>{d}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {ORIGENES.map((o) => (
+                  <tr key={o}>
+                    <td>{o}</td>
+                    {DESTINOS.map((d) => {
+                      const v = valorCelda(o, d)
+                      return <td key={d} style={celdaEstilo(v.base, v.color)}>{v.texto}</td>
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ fontSize: 12, marginTop: 8 }}>
+              Filas: bucket inicial. Columnas: bucket en la fecha de seguimiento. Verde mejora, gris permanece, rojo deteriora,
+              amarillo sin registro. En % cada fila suma 100 %. Saldo observado usa el color del saldo base.
+            </p>
+          </>
+        )}
       </div>
 
       <Titulo texto="Resumen por bucket inicial" />

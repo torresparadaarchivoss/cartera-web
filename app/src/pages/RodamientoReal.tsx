@@ -5,12 +5,16 @@ import type { CeldaRodamiento } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Titulo, TONOS } from '../components/Bloques'
 import { Radios } from '../components/Selectores'
+import { evolucion } from '../lib/evolucion'
+import { TablaEvolucion } from '../components/TablaEvolucion'
 
 // Rodamiento real (modules/rodamiento_real.py): cartera activa en la fecha con saldo congelado del primer día activo.
 // Pendiente: desglose por estado de promesa, prioridad, visita e intentos (esas columnas aún no están en la base) y
 // la evolución por bucket con metas.
 
 const MEDIDAS = ['% del saldo', '% de cuentas', 'Saldo', 'Cuentas'] as const
+const FORMATOS = ['Evolución', 'Matriz'] as const
+type Formato = (typeof FORMATOS)[number]
 type Medida = (typeof MEDIDAS)[number]
 const ORIGENES = ['0', '1', '2', '3', '4', '5', '6', 'Sin referencia', 'Nuevo en el mes'] as const
 const DESTINOS = ['0', '1', '2', '3', '4', '5', '6'] as const
@@ -45,6 +49,7 @@ function celdaEstilo(base: string, v: number | null): CSSProperties {
 export default function RodamientoReal() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [medida, setMedida] = useState<Medida>('% del saldo')
+  const [formato, setFormato] = useState<Formato>('Evolución')
   const [celdas, setCeldas] = useState<CeldaRodamiento[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,6 +86,14 @@ export default function RodamientoReal() {
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
   if (!vista || !corte || !fechaBase || !celdas) return <p className="vacio">Cargando la cartera…</p>
   if (vista.total.cuentas === 0) return <Nota tipo="alerta" texto="No hay cuentas activas con los filtros seleccionados." />
+  const cuentasMedida = medida.includes('cuenta') || medida === 'Cuentas'
+  const celdasMov = celdas.filter((c) => /^\d$/.test(c.origen)).map((c) => ({
+    origen: c.origen, movimiento: movimiento(c.origen, c.destino), creditos: c.creditos, saldo: c.saldo_congelado, saldoObs: 0,
+  }))
+  const evoBloque = evolucion(celdasMov, [...ORIGENES].slice(0, 7), ['Mejora', 'Mantiene', 'Desmejora'],
+    ['Mejora', 'Mantiene', 'Desmejora'], medida, { '0': 'Mejora', '6': 'Desmejora' })
+  const evoColor = evolucion(celdasMov, [...ORIGENES].slice(0, 7), ['Mejora', 'Mantiene', 'Desmejora'],
+    ['Mejora', 'Mantiene', 'Desmejora'], cuentasMedida ? '% de cuentas' : '% del saldo', { '0': 'Mejora', '6': 'Desmejora' })
 
   const { total, mov } = vista
   const pctMov = (m: string) => (total.saldo ? (mov[m] ?? 0) / total.saldo : null)
@@ -133,34 +146,48 @@ export default function RodamientoReal() {
         <Kpi etiqueta="Sin referencia" valor={pct(pctMov('Sin referencia'))} detalle="JUR o fuera del cierre de loantape" tono="alerta" />
       </FilaKpi>
 
-      <Titulo texto={`Matriz de transición al ${fecha(corte)} · ${medida.toLowerCase()}`} />
       <div className="dc-tarjeta">
-        <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end', marginBottom: 8 }}>
           <Radios etiqueta="Matriz en" opciones={[...MEDIDAS]} valor={medida} onChange={setMedida} />
+          <Radios etiqueta="Formato de tabla" opciones={[...FORMATOS]} valor={formato} onChange={setFormato} />
         </div>
-        <table className="dc-tabla">
-          <thead>
-            <tr>
-              <th>Bucket inicial \ en la fecha</th>
-              {DESTINOS.map((d) => <th key={d}>{d}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {ORIGENES.map((o) => (
-              <tr key={o}>
-                <td>{o}</td>
-                {DESTINOS.map((d) => {
-                  const v = valorCelda(o, d)
-                  return <td key={d} style={celdaEstilo(v.base, v.color)}>{v.texto}</td>
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p style={{ fontSize: 12, marginTop: 8 }}>
-          Filas: bucket inicial. «Nuevo en el mes»: cuentas que no estaban activas el primer día. Ponderado con el saldo
-          congelado; las cuentas que salen dejan de contar. Cada fila suma 100 % en las vistas porcentuales.
-        </p>
+        {formato === 'Evolución' ? (
+          <>
+            <Titulo texto={`Evolución por bucket inicial al ${fecha(corte)} · ${medida.toLowerCase()}`} />
+            <TablaEvolucion filas={evoBloque.filas} total={evoBloque.total} colorFilas={evoColor.filas}
+              columnas={['Mejora', 'Mantiene', 'Desmejora']} medida={medida} />
+            <p style={{ fontSize: 12, marginTop: 8 }}>
+              Cuentas activas con bucket inicial, saldo congelado. Las nuevas del mes y las sin referencia se ven en la matriz.
+            </p>
+          </>
+        ) : (
+          <>
+            <Titulo texto={`Matriz de transición al ${fecha(corte)} · ${medida.toLowerCase()}`} />
+            <table className="dc-tabla">
+              <thead>
+                <tr>
+                  <th>Bucket inicial \ en la fecha</th>
+                  {DESTINOS.map((d) => <th key={d}>{d}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {ORIGENES.map((o) => (
+                  <tr key={o}>
+                    <td>{o}</td>
+                    {DESTINOS.map((d) => {
+                      const v = valorCelda(o, d)
+                      return <td key={d} style={celdaEstilo(v.base, v.color)}>{v.texto}</td>
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ fontSize: 12, marginTop: 8 }}>
+              Filas: bucket inicial. «Nuevo en el mes»: cuentas que no estaban activas el primer día. Ponderado con el saldo
+              congelado; las cuentas que salen dejan de contar. Cada fila suma 100 % en las vistas porcentuales.
+            </p>
+          </>
+        )}
       </div>
     </>
   )
