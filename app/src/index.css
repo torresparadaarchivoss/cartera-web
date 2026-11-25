@@ -107,7 +107,6 @@ a { color: var(--verde-marca); }
   border-radius: 10px;
   padding: 0.6rem;
   margin: 0.6rem 0;
-  overflow-x: auto;
 }
 .dc-tarjeta h3 { margin-top: 0.2rem; }
 
@@ -223,7 +222,10 @@ a.radio:hover { background: #f0f2f6; }
 /* Ninguna tarjeta ni tabla se sale del ancho de la pantalla: se desplaza dentro de la tarjeta. */
 .con-lateral > * { min-width: 0; }
 .contenido { min-width: 0; }
-.dc-tarjeta { min-width: 0; overflow-x: auto; }
+/* Las listas de los filtros (st-lista) salen por encima de la tarjeta: la tarjeta no recorta nada. */
+.dc-tarjeta { min-width: 0; }
+.dc-tarjeta:has(.st-campo), .dc-tarjeta:has(.st-radios) { position: relative; z-index: 30; }
+.dc-tarjeta:focus-within { z-index: 40; }
 table.dc-tabla { max-width: none; }
 
 /* Menú lateral ocultable. */
