@@ -32,6 +32,8 @@ export default function CoreografiasGestion() {
   const [config, setConfig] = useState<Record<string, number> | null>(null)
   const [presupuesto, setPresupuesto] = useState<number | null>(null)
   const [usuarios, setUsuarios] = useState<Map<string, string>>(new Map())
+  const [roles, setRoles] = useState<Map<string, string>>(new Map())
+  const [gestiones, setGestiones] = useState<datos.GestionMes[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [segmentos, setSegmentos] = useState<string[]>([])
   const [desglose, setDesglose] = useState<Desglose>('Segmento')
@@ -41,9 +43,11 @@ export default function CoreografiasGestion() {
       .then(([e, f, u]) => {
         setEpisodios(e)
         setFpd(f)
-        setUsuarios(new Map(u.map((x) => [x.usuario_norm, x.nombre_mostrado || x.usuario_norm] as const)))
+        setUsuarios(new Map(u.map((x) => [x.usuario_norm.toLowerCase(), x.nombre_mostrado || x.usuario_norm] as const)))
+        setRoles(new Map(u.map((x) => [x.usuario_norm.toLowerCase(), x.rol ?? 'agente'] as const)))
       })
       .catch((e: Error) => setError(e.message))
+    datos.gestionesMes().then(setGestiones).catch((e: Error) => setError(e.message))
   }, [])
 
   useEffect(() => {
@@ -72,7 +76,7 @@ export default function CoreografiasGestion() {
   const umbralAmarillo = config.umbral_amarillo ?? 0.7
   const tono = (x: number | null) => (x === null ? 'neutro' : x >= umbralVerde ? 'bueno' : x >= umbralAmarillo ? 'alerta' : 'malo')
   const total = co.fila(filtrados)
-  const nombreGestor = (g: string) => usuarios.get(g) ?? g
+  const nombreGestor = (g: string) => usuarios.get(g.toLowerCase()) ?? g
 
   const grupos = co.agrupar(filtrados, CLAVE_DESGLOSE[desglose])
   const filasDesglose = [...grupos.entries()].sort((a, b) => b[1].episodios - a[1].episodios).map(([k, f]) => ({
@@ -225,6 +229,37 @@ export default function CoreografiasGestion() {
           </table>
         </div>
       </div>
+
+      {gestiones && (
+        <div className="dc-tarjeta">
+          <Titulo texto="Productividad por gestor · Call Center y campo" />
+          <p style={{ fontSize: 12 }}>Campo: usuarios con rol visitador (sus gestiones de McCollect). Call Center: el resto. Episodios y cumplimiento: los episodios de los que es gestor asignado.</p>
+          <div className="ventana">
+            <table className="dc-tabla">
+              <thead><tr><th>Usuario</th><th>Canal</th><th>Gestiones</th><th>Contactos</th><th>RPC</th><th>PRP</th><th>Episodios</th><th>% coreografía</th></tr></thead>
+              <tbody>
+                {[...new Set(gestiones.map((g) => g.usuario.trim().toLowerCase()))]
+                  .filter((u) => u && !['arrivasg', 'cdhidalgog', 'eabaltodanom', 'gssolag', 'instacredit', 'jmcastillod', 'mggutierrezl', 'mncanasg'].includes(u))
+                  .map((u) => {
+                    const xs = gestiones.filter((g) => g.usuario.trim().toLowerCase() === u && g.fecha_actividad.slice(0, 10) <= corte)
+                    const eps = filtrados.filter((x) => (x.gestor ?? '').trim().toLowerCase() === u)
+                    const f = co.fila(eps)
+                    return { u, campo: roles.get(u) === 'visitador',
+                      g: xs.length, c: xs.reduce((a, x) => a + x.contacto, 0), r: xs.reduce((a, x) => a + x.rpc, 0),
+                      p: xs.reduce((a, x) => a + x.prp, 0), e: eps.length, cumple: f.pasos.coreografia }
+                  })
+                  .sort((a, b) => b.g - a.g)
+                  .map((x) => (
+                    <tr key={x.u}>
+                      <td>{nombreGestor(x.u)}</td><td>{x.campo ? 'Campo' : 'Call Center'}</td><td>{entero(x.g)}</td>
+                      <td>{entero(x.c)}</td><td>{entero(x.r)}</td><td>{entero(x.p)}</td><td>{entero(x.e)}</td><td>{pct(x.cumple)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="dc-tarjeta">
         <Titulo texto="Acción de hoy" />
