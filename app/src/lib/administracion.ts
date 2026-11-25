@@ -173,3 +173,19 @@ export async function guardarMetasLegal(periodo: string, cambios: { llave: strin
     }
   }
 }
+
+// Parámetros por mes (comisión y coreografía): por clave, el valor del último mes registrado hasta el mes.
+export async function parametrosTabla(tabla: 'parametros_comision' | 'parametros_coreografia', periodo: string): Promise<Record<string, number>> {
+  const filas = revisar(await supabase.from(tabla).select('periodo, clave, valor').lte('periodo', periodo)
+    .order('periodo', { ascending: false })) as { periodo: string; clave: string; valor: number }[]
+  const salida: Record<string, number> = {}
+  for (const f of filas) if (!(f.clave in salida)) salida[f.clave] = Number(f.valor)
+  return salida
+}
+
+export async function guardarParametros(tabla: 'parametros_comision' | 'parametros_coreografia', periodo: string,
+  cambios: { clave: string; valor: number }[]): Promise<void> {
+  if (!cambios.length) return
+  revisar(await supabase.from(tabla).upsert(cambios.map((c) => ({ periodo, clave: c.clave, valor: c.valor })),
+    { onConflict: 'periodo,clave' }).select('clave'))
+}

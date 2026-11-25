@@ -29,6 +29,23 @@ def mora_previa_desde_loantape(d) -> pd.DataFrame:
     }).drop_duplicates("credito", keep="last").reset_index(drop=True)
 
 
+def parametros_web(periodo: str) -> dict:
+    """Parámetros de coreografía editados en la web (parametros_coreografia): el último valor de cada clave hasta el mes.
+    Sin conexión o sin valores, no cambia nada."""
+    url = os.environ.get("SUPABASE_DB_URL", "").strip()
+    if not url:
+        return {}
+    import psycopg  # noqa: E402
+
+    with psycopg.connect(url) as con:
+        filas = con.execute("select clave, valor, periodo from public.parametros_coreografia where periodo <= %s "
+                            "order by periodo desc", (periodo,)).fetchall()
+    salida: dict = {}
+    for clave, valor, _ in filas:
+        salida.setdefault(clave, float(valor))
+    return salida
+
+
 def calcular(origen: str, anio: int, mes: int) -> dict:
     sys.path.insert(0, origen)
     from config import app_config_o_defecto  # noqa: E402  (lectura del Streamlit)
@@ -40,6 +57,7 @@ def calcular(origen: str, anio: int, mes: int) -> dict:
     d = cargar_mes(anio, mes, usar_cache=False)
     ruta = app_config_o_defecto().metas_db
     prm, origen_params = cr.parametros(ruta, d.periodo)
+    prm = {**prm, **parametros_web(d.periodo)}
     cal = co.Calendario(frozenset(cr.dias_no_habiles(ruta)), bool(prm["sabado_habil"]))
     corte = pd.Timestamp(d.cartera["f_reporte"].max())
     d.mora_previa = mora_previa_desde_loantape(d)

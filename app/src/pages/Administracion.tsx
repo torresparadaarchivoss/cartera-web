@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import RecaudoLegalAdmin from '../components/RecaudoLegalAdmin'
+import ParametrosAdmin from '../components/ParametrosAdmin'
 import { useDatos } from '../lib/contexto'
 import * as adm from '../lib/administracion'
 import type { Asignacion, Asueto, MetaBucket, MetaUsuario, TipoUsuario, Usuario } from '../lib/administracion'
@@ -10,7 +11,7 @@ import { Radios } from '../components/Selectores'
 // Pendiente: importar el catálogo desde el Excel de PRP, sincronizar usuarios desde las fuentes, parámetros de
 // comisión y coreografía, y recaudo legal (canal y meta por gestor).
 
-const SECCIONES = ['Usuarios', 'Asignación', 'Metas por usuario', 'Metas por bucket', 'Recaudo legal', 'Asuetos y presupuesto FPD'] as const
+const SECCIONES = ['Usuarios', 'Asignación', 'Metas por usuario', 'Metas por bucket', 'Recaudo legal', 'Parámetros', 'Asuetos y presupuesto FPD'] as const
 type Seccion = (typeof SECCIONES)[number]
 const DEPARTAMENTOS = ['Administrativa', 'Legal']
 
@@ -45,6 +46,13 @@ const IND_BUCKET = [
 const BUCKETS = ['0', '1', '2', '3', '4', '5', '6']
 
 type Ind = { clave: string; etiqueta: string; formato: string }
+
+// Mes anterior «aaaa-mm» (para copiar metas).
+const mesAnterior = (periodo: string) => {
+  const anio = Number(periodo.slice(0, 4))
+  const mes = Number(periodo.slice(5, 7))
+  return mes === 1 ? `${anio - 1}-12` : `${anio}-${String(mes - 1).padStart(2, '0')}`
+}
 
 const aTexto = (v: string) => (v.trim() === '' ? null : v.trim())
 const aNumero = (v: string): number | null => (v.trim() === '' || Number.isNaN(Number(v)) ? null : Number(v))
@@ -94,6 +102,7 @@ export default function Administracion() {
       {seccion === 'Recaudo legal' && periodo && corte && (
         <RecaudoLegalAdmin periodo={periodo} corte={corte} usuarios={usuarios} onGuardado={(m) => setAviso(m)} />
       )}
+      {seccion === 'Parámetros' && periodo && <ParametrosAdmin periodo={periodo} onGuardado={(m) => setAviso(m)} />}
       {seccion === 'Asuetos y presupuesto FPD' && <SeccionAsuetos onGuardado={(m) => setAviso(m)} />}
     </>
   )
@@ -273,6 +282,18 @@ function SeccionMetasUsuario({ periodo, usuarios, asig, onGuardado }: {
   const tramoDe = (uid: number) => asig.filter((a) => a.usuario_id === uid && a.periodo <= periodo)
     .sort((a, b) => b.periodo.localeCompare(a.periodo))[0]
 
+  // Copia las metas del mes anterior al borrador: se guardan con «Guardar metas».
+  const copiar = async () => {
+    try {
+      const anterior = await adm.metasUsuario(mesAnterior(periodo))
+      const b: Record<string, string> = {}
+      for (const x of anterior) b[`${x.usuario_id}|${x.indicador}`] = String(x.valor_meta)
+      setBorrador(b)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
   const guardar = async () => {
     const cambios: { usuario_id: number; indicador: string; valor: number | null }[] = []
     for (const [k, v] of Object.entries(borrador)) {
@@ -303,6 +324,7 @@ function SeccionMetasUsuario({ periodo, usuarios, asig, onGuardado }: {
         <label style={{ fontSize: 13 }}>
           <input type="checkbox" checked={verInactivos} onChange={(e) => setVerInactivos(e.target.checked)} /> Incluir inactivos
         </label>
+        <button className="boton" onClick={copiar}>Copiar desde {mesAnterior(periodo)}</button>
         <button className="boton" onClick={guardar} disabled={Object.keys(borrador).length === 0}>Guardar metas</button>
       </div>
       {error && <div className="error-pantalla">{error}</div>}
@@ -354,6 +376,22 @@ function SeccionMetasBucket({ periodo, onGuardado }: { periodo: string; onGuarda
     return m?.valor_meta === null || m === undefined ? '' : String(m.valor_meta)
   }
 
+  // Copia las metas del mes anterior al borrador (en porcentaje, como se muestran); se guardan con «Guardar».
+  const copiar = async () => {
+    try {
+      const anterior = await adm.metasBucket(mesAnterior(periodo))
+      const b: Record<string, string> = {}
+      for (const x of anterior) {
+        if (x.valor_meta === null) continue
+        const esPct = IND_BUCKET.find((i) => i.clave === x.indicador)?.formato === 'pct'
+        b[`${x.bucket}|${x.indicador}`] = String(esPct ? Number(x.valor_meta) * 100 : Number(x.valor_meta))
+      }
+      setBorrador(b)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
   const guardar = async () => {
     const cambios: { bucket: string; indicador: string; valor: number | null }[] = []
     for (const [k, v] of Object.entries(borrador)) {
@@ -381,6 +419,7 @@ function SeccionMetasBucket({ periodo, onGuardado }: { periodo: string; onGuarda
         Porcentajes de 0 a 100. No aplica: mejora en bucket 0, desmejora en bucket 6. Recuperación en dólares por bucket.
       </p>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <button className="boton" onClick={copiar}>Copiar desde {mesAnterior(periodo)}</button>
         <button className="boton" onClick={guardar} disabled={Object.keys(borrador).length === 0}>Guardar metas por bucket</button>
       </div>
       {error && <div className="error-pantalla">{error}</div>}

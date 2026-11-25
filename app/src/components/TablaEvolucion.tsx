@@ -22,18 +22,21 @@ function estiloCelda(base: string, v: number | null): CSSProperties {
   return { backgroundColor: `rgba(${r},${g},${b},${a.toFixed(2)})`, color: TONOS.neutro, fontWeight: 500 }
 }
 
-export function TablaEvolucion({ filas, total, colorFilas, columnas, medida, metas }: {
+export function TablaEvolucion({ filas, total, colorFilas, columnas, medida, metas, cumplimientoEn }: {
   filas: FilaEvo[]
   total: FilaEvo
   colorFilas: FilaEvo[]
   columnas: string[]
   medida: string
   metas?: MetaCelda[][]
+  cumplimientoEn?: string[]
 }) {
   const m = medida.toLowerCase()
   const esPct = m.startsWith('%')
   const formato = (v: number | null) => (esPct ? pct(v) : m.includes('cuenta') ? entero(v) : dinero(v))
   const conMetas = !!metas
+  // Cumplimiento solo en las columnas que lo tienen (el Streamlit no lo calcula para mantiene).
+  const cumplCols = cumplimientoEn ?? columnas
   return (
     <table className="dc-tabla">
       <thead>
@@ -42,14 +45,14 @@ export function TablaEvolucion({ filas, total, colorFilas, columnas, medida, met
             <th />
             <th colSpan={columnas.length} style={{ textAlign: 'center' }}>Real</th>
             <th colSpan={columnas.length} style={{ textAlign: 'center' }}>Presupuesto</th>
-            <th colSpan={columnas.length} style={{ textAlign: 'center' }}>Cumplimiento</th>
+            <th colSpan={cumplCols.length} style={{ textAlign: 'center' }}>Cumplimiento</th>
           </tr>
         )}
         <tr>
           <th>Bucket inicial</th>
           {columnas.map((c) => <th key={`r-${c}`}>{c}</th>)}
           {conMetas && columnas.map((c) => <th key={`m-${c}`}>{c}</th>)}
-          {conMetas && columnas.map((c) => <th key={`c-${c}`}>{c}</th>)}
+          {conMetas && cumplCols.map((c) => <th key={`c-${c}`}>{c}</th>)}
         </tr>
       </thead>
       <tbody>
@@ -67,10 +70,10 @@ export function TablaEvolucion({ filas, total, colorFilas, columnas, medida, met
                 {c?.noAplica ? 'n/a' : c?.meta === null || c?.meta === undefined ? '—' : pct(c.meta)}
               </td>
             })}
-            {conMetas && columnas.map((_, j) => {
-              const c = metas[i]?.[j]
+            {conMetas && cumplCols.map((col) => {
+              const c = metas[i]?.[columnas.indexOf(col)]
               const color = c?.sem && c.sem in CELDA_SEM ? CELDA_SEM[c.sem as keyof typeof CELDA_SEM] : undefined
-              return <td key={`cu-${j}`} style={color ? { background: color, color: '#000' } : { color: '#9AA4AF' }}>
+              return <td key={`cu-${col}`} style={color ? { background: color, color: '#000' } : { color: '#9AA4AF' }}>
                 {c?.noAplica ? 'n/a' : c?.cumple === null || c?.cumple === undefined ? '—' : pct(c.cumple)}
               </td>
             })}
@@ -80,7 +83,7 @@ export function TablaEvolucion({ filas, total, colorFilas, columnas, medida, met
           <td>{total.origen}</td>
           {total.valores.map((v, j) => <td key={j}>{formato(v)}</td>)}
           {conMetas && columnas.map((c) => <td key={`tm-${c}`} />)}
-          {conMetas && columnas.map((c) => <td key={`tc-${c}`} />)}
+          {conMetas && cumplCols.map((c) => <td key={`tc-${c}`} />)}
         </tr>
       </tbody>
     </table>
