@@ -189,3 +189,15 @@ export async function guardarParametros(tabla: 'parametros_comision' | 'parametr
   revisar(await supabase.from(tabla).upsert(cambios.map((c) => ({ periodo, clave: c.clave, valor: c.valor })),
     { onConflict: 'periodo,clave' }).select('clave'))
 }
+
+// Alta manual de usuario (los que aparecen en la actividad del mes ya los da de alta la carga de detalle).
+// El usuario se normaliza como en la carga: agentes en minúsculas, visitadores en mayúsculas.
+export async function crearUsuario(u: { tipo: TipoUsuario; usuario: string; nombre: string | null; rol: string | null }): Promise<void> {
+  const norm = u.tipo === 'agente' ? u.usuario.trim().toLowerCase() : u.usuario.trim().toUpperCase()
+  if (!norm) throw new Error('Falta el usuario.')
+  const ultimo = revisar(await supabase.from('usuarios').select('id').order('id', { ascending: false }).limit(1)) as { id: number }[]
+  const id = (ultimo[0]?.id ?? 0) + 1
+  revisar(await supabase.from('usuarios').insert({
+    id, tipo: u.tipo, usuario_norm: norm, nombre_mostrado: u.nombre?.trim() || norm, estado: 'activo', rol: u.rol,
+  }).select('id'))
+}

@@ -110,6 +110,16 @@ export default function Administracion() {
 
 function SeccionUsuarios({ usuarios, onGuardado }: { usuarios: Usuario[]; onGuardado: (m: string) => void }) {
   const [tipo, setTipo] = useState<TipoUsuario>('agente')
+  const [nuevo, setNuevo] = useState({ usuario: '', nombre: '', rol: 'agente' })
+  const agregar = async () => {
+    try {
+      await adm.crearUsuario({ tipo, usuario: nuevo.usuario, nombre: nuevo.nombre, rol: tipo === 'agente' ? nuevo.rol : 'visitador' })
+      setNuevo({ usuario: '', nombre: '', rol: 'agente' })
+      onGuardado(`Usuario ${nuevo.usuario.trim()} agregado.`)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   const [verInactivos, setVerInactivos] = useState(false)
   const [borrador, setBorrador] = useState<Record<number, { nombre: string; estado: 'activo' | 'inactivo' }>>({})
   const [error, setError] = useState<string | null>(null)
@@ -158,7 +168,19 @@ function SeccionUsuarios({ usuarios, onGuardado }: { usuarios: Usuario[]; onGuar
           })}
         </tbody>
       </table>
-      <p style={{ fontSize: 12 }}>Los usuarios nuevos llegan desde la carga del mes; aquí solo se corrigen nombres y estado.</p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', margin: '8px 0' }}>
+        <label style={{ fontSize: 12 }}>Usuario<br /><input value={nuevo.usuario} onChange={(e) => setNuevo({ ...nuevo, usuario: e.target.value })} /></label>
+        <label style={{ fontSize: 12 }}>Nombre mostrado<br /><input value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} /></label>
+        {tipo === 'agente' && (
+          <label style={{ fontSize: 12 }}>Rol<br />
+            <select value={nuevo.rol} onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value })}>
+              <option value="agente">agente</option><option value="supervisor">supervisor</option><option value="visitador">visitador</option>
+            </select>
+          </label>
+        )}
+        <button className="boton" onClick={agregar} disabled={!nuevo.usuario.trim()}>Agregar usuario</button>
+      </div>
+      <p style={{ fontSize: 12 }}>Los usuarios que aparecen en la actividad del mes se dan de alta solos. Aquí se agregan los que no tienen actividad todavía.</p>
     </div>
   )
 }
