@@ -5,7 +5,7 @@ import * as adm from '../lib/administracion'
 import type { Asignacion, MetaUsuario, Usuario } from '../lib/administracion'
 import { CELDA_SEM, PESOS_DIAS, PUNTO_SEM, factorProrrateo } from '../lib/prorrateo'
 import { dinero, entero, fecha, pct } from '../lib/formato'
-import { FilaKpi, Grafico, Kpi, Nota, Titulo } from '../components/Bloques'
+import { FilaKpi, Grafico, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
 import { Radios, SelectBox } from '../components/Selectores'
 import * as met from '../lib/metas'
 import type { Data, Layout } from 'plotly.js'
@@ -37,6 +37,7 @@ export default function MetasCumplimiento() {
   const [verInactivos, setVerInactivos] = useState(false)
   const [supervisor, setSupervisor] = useState('')
   const [departamento, setDepartamento] = useState('')
+  const [embudo, setEmbudo] = useState('')
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null)
   const [asig, setAsig] = useState<Asignacion[]>([])
   const [metas, setMetas] = useState<(MetaUsuario & { derivada?: boolean })[]>([])
@@ -109,6 +110,26 @@ export default function MetasCumplimiento() {
   const totSem = met.semaforoCon(totCumple, UMBRAL_VERDE, UMBRAL_AMARILLO)
   const celda = (s: string | null | undefined) => (s && ESC[s] ? { background: ESC[s], color: '#000' } : {})
   const conGrafico = enIndicador.filter((f) => f.cumplimiento !== null)
+
+  // Embudo del mes a la fecha (modules/metas._embudos): gestiones y cuentas, para el equipo filtrado o un agente.
+  const elegido = usuarios.find((u) => u.tipo === 'agente' && u.usuario_norm.toLowerCase() === embudo.toLowerCase())
+  const quienes = new Set(
+    (elegido ? [elegido] : usuarios.filter((u) => u.tipo === 'agente' && ev.some((f) => f.usuario_id === u.id)))
+      .map((u) => u.usuario_norm.trim().toLowerCase()),
+  )
+  const gEmbudo = gestiones.filter((g) => quienes.has(g.usuario.trim().toLowerCase()) && g.fecha_actividad.slice(0, 10) <= corte)
+  const contar = (xs: datos.GestionMes[], pred: (g: datos.GestionMes) => boolean) => new Set(xs.filter(pred).map((g) => g.credito)).size
+  const etapasGestiones = ['Gestiones', 'Con contacto', 'RPC', 'Promesas']
+  const valoresGestiones = [gEmbudo.length, gEmbudo.reduce((a, g) => a + g.contacto, 0), gEmbudo.reduce((a, g) => a + g.rpc, 0),
+    gEmbudo.reduce((a, g) => a + g.promesa_catalogo, 0)]
+  const etapasCuentas = ['Cuentas gestionadas', 'Con contacto', 'Con RPC', 'Con promesa']
+  const valoresCuentas = [contar(gEmbudo, (g) => g.gestionada === 1), contar(gEmbudo, (g) => g.contacto === 1),
+    contar(gEmbudo, (g) => g.rpc === 1), contar(gEmbudo, (g) => g.promesa_catalogo === 1)]
+  const colores = ['#2D3A7C', '#4F5BB8', '#F5B544', '#3FA04E']
+  const embudoFig = (etapas: string[], valores: number[]): Data[] => [{
+    type: 'funnel', y: etapas, x: valores, textinfo: 'value+percent initial', marker: { color: colores },
+  } as unknown as Data]
+  const nombreEmbudo = elegido ? (elegido.nombre_mostrado || elegido.usuario_norm) : 'todo el equipo'
 
   return (
     <>
@@ -246,7 +267,33 @@ export default function MetasCumplimiento() {
           layout={{ xaxis: { tickformat: '.0%' }, margin: { l: 180, r: 16, t: 16, b: 40 } } as Partial<Layout>} />
       </div>
 
-      <Nota texto="Pendiente de portar: el embudo de gestión (agentes) y el cumplimiento diario por usuario." />
+      {tipo === 'agente' && (
+        <div className="dc-tarjeta">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <Titulo texto={`Embudo de gestión · ${nombreEmbudo}`} />
+            <SelectBox etiqueta="Embudo de" valor={embudo} onChange={setEmbudo}
+              opciones={[{ valor: '', etiqueta: 'Todo el equipo' }, ...usuarios.filter((u) => u.tipo === 'agente' && u.estado === 'activo')
+                .map((u) => ({ valor: u.usuario_norm, etiqueta: u.nombre_mostrado || u.usuario_norm }))]} />
+          </div>
+          {gEmbudo.length === 0 ? <Nota tipo="alerta" texto="Sin gestiones para el embudo con esta selección." /> : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+              <div>
+                <Titulo texto="En gestiones" />
+                <Plot data={embudoFig(etapasGestiones, valoresGestiones)} layout={{ height: 300, margin: { l: 130, r: 16, t: 16, b: 16 } } as Partial<Layout>}
+                  config={{ displayModeBar: false, responsive: true }} style={{ width: '100%' }} useResizeHandler />
+              </div>
+              <div>
+                <Titulo texto="En cuentas" />
+                <Plot data={embudoFig(etapasCuentas, valoresCuentas)} layout={{ height: 300, margin: { l: 130, r: 16, t: 16, b: 16 } } as Partial<Layout>}
+                  config={{ displayModeBar: false, responsive: true }} style={{ width: '100%' }} useResizeHandler />
+              </div>
+            </div>
+          )}
+          <p style={{ fontSize: 12 }}>Del {fecha(fechaBase)} al {fecha(corte)}. Gestiones: cada registro cuenta. Cuentas: créditos únicos con al menos una gestión de ese tipo. Promesas: sin SGL.</p>
+        </div>
+      )}
+
+      <Nota texto="Pendiente de portar: el cumplimiento diario por usuario." />
     </>
   )
 }
