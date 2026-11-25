@@ -236,6 +236,44 @@ export default function MetasCumplimiento() {
                       </tr>
                     )
                   })}
+                  {(() => {
+                    // Total equipo (services/metas._diario): solo suma a quien tiene meta hábil; cantidades de todos.
+                    const con = agentesFiltrados.filter((u) => diario.habil.get(u.id) != null)
+                    const celdasT = diasDia.map((d) => {
+                      let r = 0
+                      let mt = 0
+                      for (const u of con) {
+                        const c = diario.filas.get(u.id)?.get(d)
+                        if (!c) continue
+                        r += c.real
+                        if (c.meta !== null) mt += c.meta
+                      }
+                      const rAll = agentesFiltrados.reduce((a, u) => a + (diario.filas.get(u.id)?.get(d)?.real ?? 0), 0)
+                      return { d, r, mt, cd: celdaDia(r, mt || null), rAll }
+                    })
+                    const rMes = celdasT.reduce((a, c) => a + c.r, 0)
+                    const mMes = celdasT.reduce((a, c) => a + c.mt, 0)
+                    const mesT = mMes ? rMes / mMes : null
+                    const sumaH = con.reduce((a, u) => a + (diario.habil.get(u.id) ?? 0), 0)
+                    const sumaS = agentesFiltrados.reduce((a, u) => a + (diario.sabado.get(u.id) ?? 0), 0)
+                    const cantAll = celdasT.reduce((a, c) => a + c.rAll, 0)
+                    return (
+                      <tr className="total">
+                        <td>Total equipo</td><td /><td />
+                        <td>{con.length ? sumaH.toFixed(1) : '—'}</td>
+                        <td>{agentesFiltrados.some((u) => diario.sabado.get(u.id) != null) ? sumaS.toFixed(1) : '—'}</td>
+                        {celdasT.map(({ d, cd, rAll }) => (
+                          <td key={d} style={cd.sem && porcentajeDia ? { background: ESC[cd.sem] } : {}}>
+                            {porcentajeDia ? (cd.v === null ? '—' : pct(cd.v, 0)) : entero(rAll)}
+                          </td>
+                        ))}
+                        <td style={mesT !== null && porcentajeDia ? { background: ESC[met.semaforoCon(mesT, UMBRAL_VERDE, UMBRAL_AMARILLO) ?? ''] } : {}}>
+                          {porcentajeDia ? (mesT === null ? '—' : pct(mesT, 0)) : entero(cantAll)}
+                        </td>
+                        <td style={{ fontWeight: 700 }}>{mesT === null ? 'Sin meta' : mesT >= UMBRAL_VERDE ? 'Cumple' : 'No cumple'}</td>
+                      </tr>
+                    )
+                  })()}
                 </tbody>
               </table>
             </div>

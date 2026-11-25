@@ -215,6 +215,11 @@ export default function CuentasGestionar() {
     }
   }, [lista, esAdmin])
 
+  const clientesListados = useMemo(() => {
+    const ids = new Set(lista.map((c) => c.credito))
+    return clientes.filter((c) => ids.has(c.credito))
+  }, [clientes, lista])
+
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar las cuentas: {error}</div>
   if (!cuentas || !corte || !fechaBase) return <p className="vacio">Cargando el listado…</p>
@@ -249,11 +254,6 @@ export default function CuentasGestionar() {
     { e: 'Días sin gestión', f: (c) => (c.dias_sin_gestion === null ? '—' : entero(c.dias_sin_gestion)) },
     { e: 'Visitas del mes', f: (c) => entero(c.visitas_mes) },
   ]
-
-  const clientesListados = useMemo(() => {
-    const ids = new Set(lista.map((c) => c.credito))
-    return clientes.filter((c) => ids.has(c.credito))
-  }, [clientes, lista])
 
   const descargarTodo = () => {
     const hojaCuentas = lista.map((c) => ({
