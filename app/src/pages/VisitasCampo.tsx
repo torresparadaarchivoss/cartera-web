@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
 import type { CuentaListado, UbicacionDetalle, VisitaDetalle } from '../lib/datos'
-import { entero, fecha, pct } from '../lib/formato'
+import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Plot, Tabla, Titulo } from '../components/Bloques'
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
 import type { Data, Layout } from 'plotly.js'
@@ -49,10 +49,11 @@ export default function VisitasCampo() {
   const [agrupacion, setAgrupacion] = useState<'Visitador' | 'Supervisor'>('Visitador')
   const [buckets, setBuckets] = useState<string[]>([])
   // Cartera del día de cada visita: bucket de mora y supervisor (como el Streamlit).
-  const [carteraDia, setCarteraDia] = useState<Map<string, { bucket: string; supervisor: string }> | null>(null)
+  const [carteraDia, setCarteraDia] = useState<Map<string, { bucket: string; supervisor: string; saldo: number }> | null>(null)
   const [visitas, setVisitas] = useState<VisitaDetalle[] | null>(null)
   const [ubicaciones, setUbicaciones] = useState<UbicacionDetalle[]>([])
   const [cuentas, setCuentas] = useState<CuentaListado[] | null>(null)
+  const [activas, setActivas] = useState<CuentaListado[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -84,9 +85,9 @@ export default function VisitasCampo() {
     datos.carteraDeCreditos(creditos)
       .then((filas) => {
         if (!vigente) return
-        const m = new Map<string, { bucket: string; supervisor: string }>()
+        const m = new Map<string, { bucket: string; supervisor: string; saldo: number }>()
         for (const f of filas) {
-          m.set(`${f.credito}|${f.f_reporte}`, { bucket: f.bucket_actual === null ? 'Sin dato' : String(f.bucket_actual), supervisor: f.supervisor || 'Sin dato' })
+          m.set(`${f.credito}|${f.f_reporte}`, { bucket: f.bucket_actual === null ? 'Sin dato' : String(f.bucket_actual), supervisor: f.supervisor || 'Sin dato', saldo: Number(f.saldo) || 0 })
         }
         setCarteraDia(m)
       })
@@ -100,7 +101,11 @@ export default function VisitasCampo() {
     if (!corte || !filtros) return
     let vigente = true
     Promise.all([datos.cuentasListado(corte, 'cohorte', filtros), datos.cuentasListado(corte, 'activa', filtros)])
-      .then(([a, b]) => vigente && setCuentas([...a, ...b]))
+      .then(([a, b]) => {
+        if (!vigente) return
+        setCuentas([...a, ...b])
+        setActivas(b)
+      })
       .catch((e: Error) => vigente && setError(e.message))
     return () => {
       vigente = false
@@ -131,6 +136,33 @@ export default function VisitasCampo() {
   }, [visitas, corte, cuentas, cuentaPorCredito, periodo, visitadores, top, buckets, carteraDia])
 
   const creditosVisitados = useMemo(() => new Set(visitasFiltradas.map((v) => v.credito)), [visitasFiltradas])
+
+  // Saldo visitado: saldo del día de la última visita de cada crédito (services/visitas.kpis del Streamlit).
+  const saldoVisitado = useMemo(() => {
+    const ultima = new Map<string, string>()
+    for (const x of visitasFiltradas) {
+      const d = x.fecha_visita.slice(0, 10)
+      if (!ultima.has(x.credito) || d > (ultima.get(x.credito) ?? '')) ultima.set(x.credito, d)
+    }
+    let total = 0
+    for (const [credito, dia] of ultima) total += carteraDia?.get(`${credito}|${dia}`)?.saldo ?? 0
+    return total
+  }, [visitasFiltradas, carteraDia])
+
+  // Cartera visitada: cuentas críticas (prioridad «Crítico») de la cartera activa, con o sin visita en el mes.
+  const criticas = useMemo(() => {
+    const unicas = new Map<string, CuentaListado>()
+    for (const c of activas ?? []) unicas.set(c.credito, c)
+    const crit = [...unicas.values()].filter((c) => c.prioridad.startsWith('Critico'))
+    const visitadas = crit.filter((c) => c.visitas_mes > 0)
+    const sinVisita = crit.filter((c) => c.visitas_mes === 0)
+    return {
+      total: crit.length,
+      visitadas: visitadas.length,
+      sinVisita: sinVisita.length,
+      saldoSinVisita: sinVisita.reduce((a, c) => a + c.saldo_dia, 0),
+    }
+  }, [activas])
 
   const ubicacionesFiltradas = useMemo(() => {
     if (!esAdmin || !visitasFiltradas.length) return []
@@ -241,6 +273,12 @@ export default function VisitasCampo() {
       <Nota texto={`Visitas ${rango}. Promesa: resultado de visita que contiene «promesa». Los filtros globales se aplican por la cuenta.`} />
       {v.length === 0 && <Nota tipo="alerta" texto="No hay visitas con los filtros seleccionados." />}
 
+      <FilaKpi>
+        <Kpi etiqueta="Saldo visitado" valor={dinero(saldoVisitado)} detalle="saldo del día de la última visita" tono="info" />
+        <Kpi etiqueta="Cuentas críticas" valor={entero(criticas.total)} detalle="mora > 90 sin gestión o sin contacto" tono="malo" />
+        <Kpi etiqueta="Críticas visitadas" valor={entero(criticas.visitadas)} detalle={pct(criticas.total ? criticas.visitadas / criticas.total : null)} tono="bueno" />
+        <Kpi etiqueta="Críticas sin visita" valor={entero(criticas.sinVisita)} detalle={dinero(criticas.saldoSinVisita)} tono="alerta" />
+      </FilaKpi>
       <FilaKpi>
         <Kpi etiqueta="Visitas" valor={entero(v.length)} detalle={`${entero(porVisitador.size)} visitadores`} />
         <Kpi etiqueta="Créditos únicos visitados" valor={entero(creditosVisitados.size)}
