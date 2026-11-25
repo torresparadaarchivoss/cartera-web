@@ -221,3 +221,77 @@ export function ranking(ev: EvalFila[]): { usuario_id: number; nombre: string; p
     enVerde: xs.filter((x) => x.semaforo === 'Verde').length,
   })).sort((a, b) => b.promedio - a.promedio)
 }
+
+// Cumplimiento diario (services/targets_engine.cumplimiento_diario y dias_laborables).
+export const MEDIDAS_DIARIAS: Record<string, { real: 'prp' | 'promesa_catalogo' | 'uno'; base: 'prp' | 'gestion' }> = {
+  'PRP (con SGL)': { real: 'prp', base: 'prp' },
+  'Promesas (sin SGL)': { real: 'promesa_catalogo', base: 'prp' },
+  Gestiones: { real: 'uno', base: 'gestion' },
+}
+
+const FRACCION_DIA_LABORABLE = 0.3
+
+function diaSemana(iso: string): number {
+  const [a, m, d] = iso.split('-').map(Number)
+  return (new Date(a, m - 1, d).getDay() + 6) % 7 // 0 = lunes … 6 = domingo
+}
+
+// Días del mes con actividad del equipo (peso > 0 y al menos el 30 % de los agentes del día con más agentes).
+export function diasLaborables(gestiones: GestionMes[], periodo: string, corte: string, pesos: number[]): string[] {
+  const delMes = gestiones.filter((g) => g.fecha_actividad.slice(0, 7) === periodo)
+  const porDia = new Map<string, Set<string>>()
+  for (const g of delMes) {
+    const d = g.fecha_actividad.slice(0, 10)
+    porDia.set(d, (porDia.get(d) ?? new Set<string>()).add(g.usuario.trim().toLowerCase()))
+  }
+  const maximo = Math.max(0, ...[...porDia.values()].map((s) => s.size))
+  return [...porDia.entries()]
+    .filter(([d, s]) => s.size >= FRACCION_DIA_LABORABLE * maximo && pesos[diaSemana(d)] > 0 && d <= corte)
+    .map(([d]) => d)
+    .sort()
+}
+
+export interface CeldaDia {
+  real: number
+  meta: number | null
+}
+
+export function cumplimientoDiario(
+  gestiones: GestionMes[], agentes: { id: number; norm: string }[], metas: (MetaFila & { derivada?: boolean })[],
+  dias: string[], medida: string, pesos: number[],
+): { filas: Map<number, Map<string, CeldaDia>>; habil: Map<number, number | null>; sabado: Map<number, number | null> } {
+  const cfg = MEDIDAS_DIARIAS[medida]
+  const llena = (ind: string) => new Map(metas.filter((m) => m.indicador === ind && m.valor_meta !== null)
+    .map((m) => [m.usuario_id, m.valor_meta as number] as const))
+  const habil = llena(`${cfg.base}_habil`)
+  const sabadoMeta = llena(`${cfg.base}_sabado`)
+  const proporcion = pesos[0] ? pesos[5] / pesos[0] : 0.5
+  const hab = new Map<number, number | null>()
+  const sab = new Map<number, number | null>()
+  const real = new Map<string, Map<string, number>>()
+  for (const g of gestiones) {
+    const d = g.fecha_actividad.slice(0, 10)
+    if (!dias.includes(d)) continue
+    const u = g.usuario.trim().toLowerCase()
+    const v = cfg.real === 'uno' ? 1 : g[cfg.real]
+    const m = real.get(u) ?? new Map<string, number>()
+    m.set(d, (m.get(d) ?? 0) + v)
+    real.set(u, m)
+  }
+  const filas = new Map<number, Map<string, CeldaDia>>()
+  for (const a of agentes) {
+    const h = habil.get(a.id) ?? null
+    const s = h === null ? null : (sabadoMeta.get(a.id) ?? h * proporcion)
+    hab.set(a.id, h)
+    sab.set(a.id, s)
+    const r = real.get(a.norm) ?? new Map<string, number>()
+    const celdas = new Map<string, CeldaDia>()
+    for (const d of dias) {
+      const dow = diaSemana(d)
+      const meta = h === null ? null : dow === 5 ? s : h * (pesos[dow] / pesos[0])
+      celdas.set(d, { real: r.get(d) ?? 0, meta: meta === null || meta === 0 ? null : meta })
+    }
+    filas.set(a.id, celdas)
+  }
+  return { filas, habil: hab, sabado: sab }
+}

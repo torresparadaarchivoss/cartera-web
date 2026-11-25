@@ -38,6 +38,7 @@ export default function MetasCumplimiento() {
   const [supervisor, setSupervisor] = useState('')
   const [departamento, setDepartamento] = useState('')
   const [embudo, setEmbudo] = useState('')
+  const [medidaDia, setMedidaDia] = useState(Object.keys(met.MEDIDAS_DIARIAS)[0])
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null)
   const [asig, setAsig] = useState<Asignacion[]>([])
   const [metas, setMetas] = useState<(MetaUsuario & { derivada?: boolean })[]>([])
@@ -129,6 +130,19 @@ export default function MetasCumplimiento() {
   const embudoFig = (etapas: string[], valores: number[]): Data[] => [{
     type: 'funnel', y: etapas, x: valores, textinfo: 'value+percent initial', marker: { color: colores },
   } as unknown as Data]
+  // Cumplimiento diario (modules/metas._diario): agente × día laborable, con la meta diaria de Administración.
+  const agentesFiltrados = usuarios.filter((u) => u.tipo === 'agente' && (verInactivos || u.estado === 'activo'))
+    .filter((u) => {
+      const a = asig.filter((x) => x.usuario_id === u.id && x.periodo <= periodo).sort((x, y) => y.periodo.localeCompare(x.periodo))[0]
+      return (!supervisor || a?.supervisor === supervisor) && (!departamento || a?.departamento === departamento)
+    })
+  const diasDia = met.diasLaborables(gestiones, periodo, corte, PESOS_DIAS)
+  const diario = met.cumplimientoDiario(gestiones, agentesFiltrados.map((u) => ({ id: u.id, norm: u.usuario_norm.toLowerCase() })),
+    metas, diasDia, medidaDia, PESOS_DIAS)
+  const hayMetaDia = [...diario.habil.values()].some((v) => v !== null)
+  const porcentajeDia = porcentaje && hayMetaDia
+  const celdaDia = (real: number, meta: number | null) => (meta === null ? { v: null as number | null, sem: null as string | null } : {
+    v: real / meta, sem: met.semaforoCon(real / meta, UMBRAL_VERDE, UMBRAL_AMARILLO)})
   const nombreEmbudo = elegido ? (elegido.nombre_mostrado || elegido.usuario_norm) : 'todo el equipo'
 
   return (
@@ -165,6 +179,69 @@ export default function MetasCumplimiento() {
         <Kpi etiqueta="Mes transcurrido" valor={pct(factor)} detalle={`al ${fecha(corte)}`} tono="info" />
       </FilaKpi>
       <Nota texto={`Conteos y montos se comparan con la meta prorrateada a la fecha: ${pct(factor)} del mes transcurrido (lunes a viernes 1, sábado 0,5, domingo 0). Los ratios se comparan con la meta del mes.`} />
+
+      {tipo === 'agente' && (
+        <div className="dc-tarjeta">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <Titulo texto={`Cumplimiento diario · ${medidaDia}`} />
+            <SelectBox etiqueta="Cumplimiento diario de" valor={medidaDia} onChange={setMedidaDia}
+              opciones={Object.keys(met.MEDIDAS_DIARIAS).map((k) => ({ valor: k, etiqueta: k }))} />
+          </div>
+          {!hayMetaDia && <Nota tipo="alerta" texto={`Sin metas diarias de ${met.MEDIDAS_DIARIAS[medidaDia].base === 'prp' ? 'PRP' : 'gestión'} para ${periodo}: se muestran cantidades. Asígnalas en Administración → Metas por usuario.`} />}
+          {diasDia.length === 0 ? <Nota tipo="info" texto="No hay días laborables hasta la fecha de seguimiento." /> : (
+            <div className="ventana" style={{ maxHeight: 460 }}>
+              <table className="dc-tabla">
+                <thead>
+                  <tr>
+                    <th>Agente</th><th>Supervisor</th><th>Tramo</th><th className="num">Meta hábil</th><th className="num">Meta sábado</th>
+                    {diasDia.map((d) => <th key={d}>{d.slice(8, 10)}/{d.slice(5, 7)}</th>)}
+                    <th>Mes</th><th>Resultado del mes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agentesFiltrados.map((u) => {
+                    const fila = diario.filas.get(u.id)
+                    const a = asignacion(u.id)
+                    let rSum = 0
+                    let mSum = 0
+                    const celdas = diasDia.map((d) => {
+                      const c = fila?.get(d) ?? { real: 0, meta: null }
+                      rSum += c.real
+                      if (c.meta !== null) mSum += c.meta
+                      const cd = celdaDia(c.real, c.meta)
+                      return { d, c, cd }
+                    })
+                    const mes = mSum ? rSum / mSum : null
+                    const res = mSum ? (mes! >= UMBRAL_VERDE ? 'Cumple' : 'No cumple') : 'Sin meta'
+                    return (
+                      <tr key={u.id}>
+                        <td>{u.nombre_mostrado || u.usuario_norm}</td>
+                        <td>{a?.supervisor ?? '—'}</td><td>{a?.tramo ?? '—'}</td>
+                        <td>{diario.habil.get(u.id) == null ? '—' : diario.habil.get(u.id)!.toFixed(1)}</td>
+                        <td>{diario.sabado.get(u.id) == null ? '—' : diario.sabado.get(u.id)!.toFixed(1)}</td>
+                        {celdas.map(({ d, c, cd }) => (
+                          <td key={d} style={cd.sem && porcentajeDia ? { background: ESC[cd.sem] } : {}}>
+                            {porcentajeDia ? (cd.v === null ? '—' : pct(cd.v, 0)) : (c.real ? entero(c.real) : '—')}
+                          </td>
+                        ))}
+                        <td style={mes !== null && porcentajeDia ? { background: ESC[met.semaforoCon(mes, UMBRAL_VERDE, UMBRAL_AMARILLO) ?? ''] } : {}}>
+                          {porcentajeDia ? (mes === null ? '—' : pct(mes, 0)) : entero(rSum)}
+                        </td>
+                        <td style={{ color: res === 'Cumple' ? '#3FA04E' : res === 'No cumple' ? '#E25C52' : '#9AA4AF', fontWeight: 700 }}>{res}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p style={{ fontSize: 12 }}>
+            {porcentajeDia ? '% del día = real ÷ meta del día (sábado: meta de sábado). Mes = real del mes ÷ suma de las metas de los días mostrados. ' : 'Cantidades del día. '}
+            Días laborables: {diasDia.length} hasta el {fecha(corte)} (días con gestiones de al menos 30 % de los agentes; excluye domingos).
+            PRP: códigos PRP. Promesas: marca de promesa del catálogo (sin SGL).
+          </p>
+        </div>
+      )}
 
       <div className="dc-tarjeta">
         <Titulo texto={`Meta contra resultado · ${ind.etiqueta}`} />
@@ -293,7 +370,7 @@ export default function MetasCumplimiento() {
         </div>
       )}
 
-      <Nota texto="Pendiente de portar: el cumplimiento diario por usuario." />
+
     </>
   )
 }
