@@ -447,3 +447,42 @@ export function gestionesMes(): Promise<GestionMes[]> {
   return todasLasFilas<GestionMes>('gestion',
     'credito, fecha_actividad, usuario, contacto, rpc, promesa, monto_promesa', 'fecha_actividad')
 }
+
+// Ficha de un crédito: su historial de cartera del mes y toda su actividad (lecturas pequeñas, por crédito).
+export interface HistorialCartera {
+  f_reporte: string
+  saldo: number
+  dias_mora: number | null
+  bucket_actual: number | null
+  gestor: string
+  supervisor: string
+  tipo_credito: string
+  tipo_legal: string
+}
+
+export interface PagoCredito {
+  fecha: string
+  pago: number
+  canal: string
+}
+
+export async function fichaCredito(credito: string): Promise<{
+  historia: HistorialCartera[]; gestiones: GestionDetalle[]; pagos: PagoCredito[]; visitas: VisitaDetalle[]
+}> {
+  const [h, g, p, v] = await Promise.all([
+    supabase.from('cobranza_diaria').select('f_reporte, saldo, dias_mora, bucket_actual, gestor, supervisor, tipo_credito, tipo_legal')
+      .eq('credito', credito).order('f_reporte', { ascending: true }),
+    supabase.from('gestion').select('credito, fecha_actividad, usuario, accion, resultado, contacto, rpc, promesa, monto_promesa, fecha_promesa')
+      .eq('credito', credito).order('fecha_actividad', { ascending: false }),
+    supabase.from('pago').select('fecha, pago, canal').eq('credito', credito).order('fecha', { ascending: false }),
+    supabase.from('visita').select('credito, fecha_visita, visitador, accion, resultado, causa_no_pago, parentesco, num_fotos, kilometros')
+      .eq('credito', credito).order('fecha_visita', { ascending: false }),
+  ])
+  for (const r of [h, g, p, v]) if (r.error) throw new Error(r.error.message)
+  return {
+    historia: (h.data ?? []) as HistorialCartera[],
+    gestiones: (g.data ?? []) as GestionDetalle[],
+    pagos: (p.data ?? []) as PagoCredito[],
+    visitas: (v.data ?? []) as VisitaDetalle[],
+  }
+}

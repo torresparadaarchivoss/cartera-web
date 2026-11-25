@@ -13,6 +13,7 @@ import RodamientoReal from './pages/RodamientoReal'
 import CuentasGestionar from './pages/CuentasGestionar'
 import VisitasCampo from './pages/VisitasCampo'
 import GestionCobros from './pages/GestionCobros'
+import FichaCredito from './pages/FichaCredito'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="/cuentas-gestionar" element={<CuentasGestionar />} />
             <Route path="/visitas-campo" element={<VisitasCampo />} />
             <Route path="/gestion-cobros" element={<GestionCobros />} />
+            <Route path="/ficha-credito" element={<FichaCredito />} />
             <Route
               path="/parametros"
               element={
