@@ -81,6 +81,8 @@ const CABECERAS_AGENTE = [
   { etiqueta: '% contacto', formato: (x: number | null) => pct(x) },
   { etiqueta: '% RPC', formato: (x: number | null) => pct(x) },
   { etiqueta: '% promesa', formato: (x: number | null) => pct(x) },
+  { etiqueta: 'Monto pagado', formato: (x: number | null) => dinero(x) },
+  { etiqueta: 'Recuperación', formato: (x: number | null) => pct(x) },
 ]
 
 export default function GestionCobros() {
@@ -92,6 +94,7 @@ export default function GestionCobros() {
   const [usuarios, setUsuarios] = useState<adm.Usuario[] | null>(null)
   const [asigs, setAsigs] = useState<adm.Asignacion[]>([])
   const [metasMes, setMetasMes] = useState<adm.MetaUsuario[]>([])
+  const [pagos, setPagos] = useState<{ credito: string; fecha: string; pago: number; gestor: string | null }[] | null>(null)
   const [gestiones, setGestiones] = useState<GestionMes[] | null>(null)
   const [cuentas, setCuentas] = useState<CuentaListado[] | null>(null)
   const [activas, setActivas] = useState<CuentaListado[]>([])
@@ -110,6 +113,10 @@ export default function GestionCobros() {
     if (!corte) return
     adm.metasUsuario(corte.slice(0, 7)).then(setMetasMes).catch((e: Error) => setError(e.message))
   }, [corte])
+
+  useEffect(() => {
+    datos.pagosMes().then(setPagos).catch((e: Error) => setError(e.message))
+  }, [])
 
   useEffect(() => {
     let vigente = true
@@ -190,8 +197,29 @@ export default function GestionCobros() {
     porAgente.set(nombre, [...(porAgente.get(nombre) ?? []), g])
   }
   const agentes = [...porAgente.entries()].sort((a, b) => b[1].length - a[1].length)
-  const filasAgente = agentes.map(([nombre, xs]) => ({ etiqueta: nombre, valores: valoresDe(resumen(xs)) }))
-  const totalAgente = { etiqueta: 'Total', valores: valoresDe(k) }
+  // Monto pagado por agente (services/gestiones.productividad): pagos del gestor en el universo y el filtro Top.
+  const pagadoDe = (xs: GestionMes[]) => {
+    const claves = new Set(xs.map((g) => g.usuario.trim().toLowerCase()))
+    return claves
+  }
+  const pagoAgente = (claves: Set<string>) => (pagos ?? []).filter((p) => {
+    if (!corte || p.fecha.slice(0, 10) > corte) return false
+    if (periodo === PERIODOS[1] && p.fecha.slice(0, 10) !== corte) return false
+    if (!p.gestor || !claves.has(p.gestor.trim().toLowerCase())) return false
+    const c = universo.get(p.credito)
+    if (!c) return false
+    if (top === 'Solo cuentas Top' && !c.top) return false
+    if (top === 'Sin cuentas Top' && c.top) return false
+    return true
+  }).reduce((a, p) => a + p.pago, 0)
+  const filaAgente = ([, xs]: [string, GestionMes[]]) => {
+    const r = resumen(xs)
+    const pagado = pagoAgente(pagadoDe(xs))
+    return [...valoresDe(r), pagado, r.monto ? pagado / r.monto : null]
+  }
+  const filasAgente = agentes.map((a) => ({ etiqueta: a[0], valores: filaAgente(a) }))
+  const pagadoTotal = pagoAgente(new Set(filtradas.map((g) => g.usuario.trim().toLowerCase())))
+  const totalAgente = { etiqueta: 'Total', valores: [...valoresDe(k), pagadoTotal, k.monto ? pagadoTotal / k.monto : null] }
 
   // Gestiones diarias (solo acumulado) y volumen por agente.
   const porDia = new Map<string, { gestiones: number; contactos: number; rpc: number; promesas: number }>()

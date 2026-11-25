@@ -512,8 +512,8 @@ export async function fichaCredito(credito: string): Promise<{
   }
 }
 
-export function pagosMes(): Promise<{ credito: string; fecha: string; pago: number }[]> {
-  return todasLasFilas('pago', 'credito, fecha, pago', 'fecha')
+export function pagosMes(): Promise<{ credito: string; fecha: string; pago: number; gestor: string | null }[]> {
+  return todasLasFilas('pago', 'credito, fecha, pago, gestor', 'fecha')
 }
 
 export function carteraDeCreditos(creditos: string[]): Promise<{
