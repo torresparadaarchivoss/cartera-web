@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { memo, paginar } from './cache'
 
 // Filtros del menú lateral. Lista vacía = todos los valores (igual que el Streamlit).
 export interface Filtros {
@@ -40,15 +41,8 @@ export type Dimension = 'bucket' | 'supervisor' | 'tipo_credito' | 'tipo_cartera
 
 // La base devuelve como máximo 1,000 filas por llamada: estas funciones que pueden devolver más traen todo por páginas.
 async function rpcTodas<T>(fn: string, args: Record<string, unknown>, orden: string): Promise<T[]> {
-  const salida: T[] = []
-  for (let desde = 0; ; desde += 1000) {
-    const res = await supabase.rpc(fn, args).order(orden).range(desde, desde + 999)
-    if (res.error) throw new Error(res.error.message)
-    const lote = (res.data ?? []) as T[]
-    salida.push(...lote)
-    if (lote.length < 1000) break
-  }
-  return salida
+  return memo(`rpc:${fn}:${JSON.stringify(args)}`, () => paginar<T>((desde) =>
+    supabase.rpc(fn, args).order(orden).range(desde, desde + 999) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>))
 }
 
 function args(f: Filtros) {
@@ -376,19 +370,11 @@ export interface VisitaDetalle {
 // Consultas por lotes de créditos (la URL no admite listas muy largas). Cada lote se pagina: la base devuelve
 // como máximo 1,000 filas por consulta.
 async function porLotes<T>(creditos: string[], tabla: string, columnas: string, orden: string): Promise<T[]> {
-  const salida: T[] = []
-  for (let i = 0; i < creditos.length; i += 300) {
-    const lote = creditos.slice(i, i + 300)
-    for (let desde = 0; ; desde += 1000) {
-      const res = await supabase.from(tabla).select(columnas).in('credito', lote)
-        .order(orden, { ascending: false }).range(desde, desde + 999)
-      if (res.error) throw new Error(res.error.message)
-      const filas = (res.data ?? []) as T[]
-      salida.push(...filas)
-      if (filas.length < 1000) break
-    }
-  }
-  return salida
+  const lotes: string[][] = []
+  for (let i = 0; i < creditos.length; i += 300) lotes.push(creditos.slice(i, i + 300))
+  const partes = await Promise.all(lotes.map((lote) => paginar<T>((desde) =>
+    supabase.from(tabla).select(columnas).in('credito', lote).order(orden, { ascending: false }).range(desde, desde + 999) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>)))
+  return partes.flat()
 }
 
 export function gestionesDe(creditos: string[]): Promise<GestionDetalle[]> {
@@ -435,15 +421,8 @@ export function ubicacionesDe(creditos: string[]): Promise<UbicacionDetalle[]> {
 
 // Visitas del mes completas (el listado de la base pasa de 1,000 filas: se pagina).
 async function todasLasFilas<T>(tabla: string, columnas: string, orden: string): Promise<T[]> {
-  const salida: T[] = []
-  for (let desde = 0; ; desde += 1000) {
-    const res = await supabase.from(tabla).select(columnas).order(orden, { ascending: true }).range(desde, desde + 999)
-    if (res.error) throw new Error(res.error.message)
-    const lote = (res.data ?? []) as T[]
-    salida.push(...lote)
-    if (lote.length < 1000) break
-  }
-  return salida
+  return memo(`tabla:${tabla}:${columnas}`, () => paginar<T>((desde) =>
+    supabase.from(tabla).select(columnas).order(orden, { ascending: true }).range(desde, desde + 999) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>))
 }
 
 export function visitasMes(): Promise<VisitaDetalle[]> {
