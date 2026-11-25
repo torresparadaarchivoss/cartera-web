@@ -44,7 +44,7 @@ interface FilaAgente {
 }
 
 function resumen(xs: GestionMes[]): FilaAgente {
-  const cred = new Set(xs.map((x) => x.credito))
+  const cred = new Set(xs.filter((x) => x.gestionada === 1).map((x) => x.credito))
   const dias = new Set(xs.map((x) => x.fecha_actividad.slice(0, 10)))
   return {
     gestiones: xs.length,

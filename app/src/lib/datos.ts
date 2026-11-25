@@ -462,11 +462,12 @@ export interface GestionMes {
   monto_promesa: number
   prp: number
   promesa_catalogo: number
+  gestionada: number
 }
 
 export function gestionesMes(): Promise<GestionMes[]> {
   return todasLasFilas<GestionMes>('gestion',
-    'credito, fecha_actividad, usuario, contacto, rpc, promesa, monto_promesa, prp, promesa_catalogo', 'fecha_actividad')
+    'credito, fecha_actividad, usuario, contacto, rpc, promesa, monto_promesa, prp, promesa_catalogo, gestionada', 'fecha_actividad')
 }
 
 // Ficha de un crédito: su historial de cartera del mes y toda su actividad (lecturas pequeñas, por crédito).

@@ -53,9 +53,11 @@ export function realAgentes(gestiones: GestionMes[], corte: string): Map<string,
     r.rpc += g.rpc
     r.promesas += g.promesa_catalogo
     r.prp += g.prp
-    const s = creditos.get(u) ?? new Set<string>()
-    s.add(g.credito)
-    creditos.set(u, s)
+    if (g.gestionada === 1) {
+      const s = creditos.get(u) ?? new Set<string>()
+      s.add(g.credito)
+      creditos.set(u, s)
+    }
   }
   for (const [u, s] of creditos) get(u).creditos_gestionados = s.size
   // Monto prometido: última promesa de cada crédito, a nombre de quien la registró.

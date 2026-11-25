@@ -18,7 +18,7 @@ import pandas as pd
 
 
 GESTION = ["credito", "fecha_actividad", "usuario", "accion", "resultado", "contacto", "rpc", "promesa",
-           "monto_promesa", "fecha_promesa", "prp", "promesa_catalogo"]
+           "monto_promesa", "fecha_promesa", "prp", "promesa_catalogo", "gestionada"]
 CLIENTE = ["credito", "ciudad", "nombre_mod", "fecha_renov", "nombre_deudor", "edad", "genero", "salario",
            "ubicacion", "profesion", "dire_trabajo", "saldopagare", "ruta_domicilio", "ruta_trabajo", "f_cierre"]
 UBICACION = ["credito", "fecha_visita", "visitador", "resultado", "latitud", "longitud"]
@@ -41,6 +41,7 @@ def preparar_gestion(g: pd.DataFrame) -> pd.DataFrame:
         "fecha_promesa": pd.to_datetime(g["fecha_promesa"], errors="coerce").dt.date,
         "prp": pd.to_numeric(g["prp"], errors="coerce").fillna(0).astype(int),
         "promesa_catalogo": pd.to_numeric(g["promesa_catalogo"], errors="coerce").fillna(0).astype(int),
+        "gestionada": pd.to_numeric(g["gestionada"], errors="coerce").fillna(0).astype(int),
     })
     return out.dropna(subset=["fecha_actividad"])[GESTION]
 
