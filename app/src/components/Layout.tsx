@@ -19,7 +19,7 @@ const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { ruta: '/ficha-credito', etiqueta: 'Ficha de crédito' },
   { etiqueta: 'Metas y cumplimiento' },
   { ruta: '/parametros', etiqueta: 'Administración' },
-  { etiqueta: 'Evolución de mora' },
+  { ruta: '/evolucion-mora', etiqueta: 'Evolución de mora' },
 ]
 
 
