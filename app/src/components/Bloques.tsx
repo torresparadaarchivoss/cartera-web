@@ -4,7 +4,7 @@ import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
 import type { Data, Layout } from 'plotly.js'
 
-const Plot = createPlotlyComponent(Plotly)
+export const Plot = createPlotlyComponent(Plotly)
 
 // Colores del tablero Streamlit (components/theme.py)
 export const TONOS = {

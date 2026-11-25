@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
-import type { CuentaListado, GestionDetalle, VisitaDetalle, VistaCuentas } from '../lib/datos'
+import type {
+  ClienteDetalle, CuentaListado, GestionDetalle, UbicacionDetalle, VisitaDetalle, VistaCuentas,
+} from '../lib/datos'
 import { dinero, entero, fecha } from '../lib/formato'
-import { FilaKpi, Kpi, Nota, Titulo } from '../components/Bloques'
+import { FilaKpi, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
+import { useAuth } from '../lib/auth'
+import type { Data } from 'plotly.js'
 
-// Cuentas a gestionar (modules/cuentas.py). Pendiente: mapa de visitas (va en Visitas de campo) y los datos del cliente
-// (nombre, domicilio, etc.) que solo ven los administradores generales.
+// Cuentas a gestionar (modules/cuentas.py). El mapa de visitas y los datos del cliente solo se cargan para
+// administradores generales; la base lo restringe con RLS (es_super_admin), esta pantalla solo los oculta.
+// El mapa completo de visitas va en Visitas de campo (pendiente).
+
+const COLORES_VISITADOR = ['#4f5bb8', '#3fa04e', '#f89040', '#e25c52', '#88c038', '#aeb6ec', '#9C3352']
 
 const ESTRATEGIAS = ['Prioridad de cobranza', 'Cuentas Top'] as const
 const POBLACIONES = ['Cohorte congelada', 'Cartera activa en la fecha'] as const
@@ -29,6 +36,44 @@ function ordenar(a: CuentaListado, b: CuentaListado): number {
 
 const distintos = (xs: string[]) => [...new Set(xs.filter((x) => x !== ''))].sort()
 
+// Mapa de visitas (modules/visitas.py: scatter_map, zoom 8, color por visitador).
+function MapaVisitas({ ubicaciones }: { ubicaciones: UbicacionDetalle[] }) {
+  const porVisitador = new Map<string, UbicacionDetalle[]>()
+  for (const u of ubicaciones) {
+    const lista = porVisitador.get(u.visitador) ?? []
+    lista.push(u)
+    porVisitador.set(u.visitador, lista)
+  }
+  const trazas = [...porVisitador.entries()].map(([visitador, us], i) => ({
+    type: 'scattermap',
+    mode: 'markers',
+    name: visitador || 'Sin visitador',
+    lat: us.map((u) => u.latitud),
+    lon: us.map((u) => u.longitud),
+    text: us.map((u) => `${u.credito} · ${fecha(u.fecha_visita.slice(0, 10))}<br>${u.resultado}`),
+    hoverinfo: 'text',
+    marker: { size: 9, opacity: 0.8, color: COLORES_VISITADOR[i % COLORES_VISITADOR.length] },
+  })) as unknown as Data[]
+  const lat = ubicaciones.reduce((a, u) => a + u.latitud, 0) / ubicaciones.length
+  const lon = ubicaciones.reduce((a, u) => a + u.longitud, 0) / ubicaciones.length
+  return (
+    <Plot
+      data={trazas}
+      layout={{
+        height: 460,
+        autosize: true,
+        margin: { l: 0, r: 0, t: 0, b: 0 },
+        paper_bgcolor: '#ffffff',
+        legend: { orientation: 'h' },
+        map: { style: 'carto-positron', center: { lat, lon }, zoom: 8 },
+      } as unknown as Partial<import('plotly.js').Layout>}
+      config={{ displayModeBar: false, responsive: true }}
+      style={{ width: '100%' }}
+      useResizeHandler
+    />
+  )
+}
+
 export default function CuentasGestionar() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [estrategia, setEstrategia] = useState<(typeof ESTRATEGIAS)[number]>('Prioridad de cobranza')
@@ -44,7 +89,11 @@ export default function CuentasGestionar() {
   const [cuentas, setCuentas] = useState<CuentaListado[] | null>(null)
   const [gest, setGest] = useState<GestionDetalle[]>([])
   const [vis, setVis] = useState<VisitaDetalle[]>([])
+  const [clientes, setClientes] = useState<ClienteDetalle[]>([])
+  const [ubicaciones, setUbicaciones] = useState<UbicacionDetalle[]>([])
   const [error, setError] = useState<string | null>(null)
+  const { perfil } = useAuth()
+  const esAdmin = perfil?.es_admin === true
 
   const vista: VistaCuentas = poblacion === 'Cohorte congelada' ? 'cohorte' : 'activa'
 
@@ -83,6 +132,8 @@ export default function CuentasGestionar() {
     if (creditos.length === 0 || creditos.length > 2000) {
       setGest([])
       setVis([])
+      setClientes([])
+      setUbicaciones([])
       return
     }
     let vigente = true
@@ -94,10 +145,20 @@ export default function CuentasGestionar() {
         }
       })
       .catch((e: Error) => vigente && setError(e.message))
+    if (esAdmin) {
+      Promise.all([datos.clientesDe(creditos), datos.ubicacionesDe(creditos)])
+        .then(([cl, ub]) => {
+          if (vigente) {
+            setClientes(cl)
+            setUbicaciones(ub)
+          }
+        })
+        .catch((e: Error) => vigente && setError(e.message))
+    }
     return () => {
       vigente = false
     }
-  }, [lista])
+  }, [lista, esAdmin])
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar las cuentas: {error}</div>
@@ -231,6 +292,40 @@ export default function CuentasGestionar() {
         </table>
         <p style={{ fontSize: 12 }}>Más reciente primero. La relación entre una promesa y un pago no se asume.</p>
       </div>
+
+      {esAdmin && (
+        <>
+          <div className="dc-tarjeta">
+            <Titulo texto={`Datos del cliente (${entero(clientes.length)}) · solo administradores`} />
+            <div style={{ maxHeight: 360, overflow: 'auto' }}>
+              <table className="dc-tabla">
+                <thead>
+                  <tr><th>Crédito</th><th>Nombre</th><th>Edad</th><th>Género</th><th>Salario</th><th>Profesión</th><th>Domicilio</th><th>Dirección de trabajo</th><th>Ciudad</th></tr>
+                </thead>
+                <tbody>
+                  {clientes.slice(0, 1000).map((c) => (
+                    <tr key={c.credito}>
+                      <td>{c.credito}</td><td>{c.nombre_deudor ?? '—'}</td><td>{c.edad ?? '—'}</td><td>{c.genero ?? '—'}</td>
+                      <td>{c.salario === null ? '—' : dinero(c.salario)}</td><td>{c.profesion ?? '—'}</td>
+                      <td>{c.ubicacion ?? '—'}</td><td>{c.dire_trabajo ?? '—'}</td><td>{c.ciudad ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="dc-tarjeta">
+            <Titulo texto={`Mapa de visitas (${entero(ubicaciones.length)}) · solo administradores`} />
+            {ubicaciones.length === 0 ? (
+              <p style={{ fontSize: 13 }}>Ninguna visita de estas cuentas tiene coordenadas válidas.</p>
+            ) : (
+              <MapaVisitas ubicaciones={ubicaciones} />
+            )}
+            <p style={{ fontSize: 12, marginTop: 8 }}>Solo visitas con coordenadas dentro de El Salvador.</p>
+          </div>
+        </>
+      )}
 
       <div className="dc-tarjeta">
         <Titulo texto={`Visitas de estas cuentas (${entero(vis.length)})`} />

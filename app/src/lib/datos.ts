@@ -377,3 +377,35 @@ export function visitasDe(creditos: string[]): Promise<VisitaDetalle[]> {
   return porLotes<VisitaDetalle>(creditos, 'visita',
     'credito, fecha_visita, visitador, accion, resultado, causa_no_pago, parentesco, num_fotos, kilometros', 'fecha_visita')
 }
+
+// Datos personales (solo administradores generales: RLS es_super_admin en la base).
+export interface ClienteDetalle {
+  credito: string
+  nombre_deudor: string | null
+  edad: number | null
+  genero: string | null
+  salario: number | null
+  profesion: string | null
+  ubicacion: string | null
+  dire_trabajo: string | null
+  ciudad: string | null
+}
+
+export interface UbicacionDetalle {
+  credito: string
+  fecha_visita: string
+  visitador: string
+  resultado: string
+  latitud: number
+  longitud: number
+}
+
+export function clientesDe(creditos: string[]): Promise<ClienteDetalle[]> {
+  return porLotes<ClienteDetalle>(creditos, 'cliente_loantape',
+    'credito, nombre_deudor, edad, genero, salario, profesion, ubicacion, dire_trabajo, ciudad', 'credito')
+}
+
+export function ubicacionesDe(creditos: string[]): Promise<UbicacionDetalle[]> {
+  return porLotes<UbicacionDetalle>(creditos, 'visita_ubicacion',
+    'credito, fecha_visita, visitador, resultado, latitud, longitud', 'fecha_visita')
+}
