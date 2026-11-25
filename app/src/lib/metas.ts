@@ -295,3 +295,6 @@ export function cumplimientoDiario(
   }
   return { filas, habil: hab, sabado: sab }
 }
+
+// Usuarios que no son agentes de cobro (config.USUARIOS_EXCLUIDOS_GESTION).
+export const EXCLUIDOS_GESTION_USUARIOS = new Set(['arrivasg', 'cdhidalgog', 'eabaltodanom', 'gssolag', 'instacredit', 'jmcastillod', 'mggutierrezl', 'mncanasg'])

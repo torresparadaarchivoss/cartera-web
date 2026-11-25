@@ -6,6 +6,8 @@ import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Plot, Tabla, Titulo } from '../components/Bloques'
 import { Radios, SelectBox } from '../components/Selectores'
 import type { Data, Layout } from 'plotly.js'
+import * as adm from '../lib/administracion'
+import { EXCLUIDOS_GESTION_USUARIOS } from '../lib/metas'
 
 // Gestión de cobros (modules/gestiones.py). Pendiente de Administración: el equipo de cobro (agentes con metas del
 // mes), los filtros de departamento y tramo, el monto pagado por agente y la productividad por supervisor. Por ahora la
@@ -85,10 +87,29 @@ export default function GestionCobros() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [periodo, setPeriodo] = useState<Periodo>(PERIODOS[0])
   const [top, setTop] = useState<TopOpc>('Todas')
+  const [departamento, setDepartamento] = useState('')
+  const [tramo, setTramo] = useState('')
+  const [usuarios, setUsuarios] = useState<adm.Usuario[] | null>(null)
+  const [asigs, setAsigs] = useState<adm.Asignacion[]>([])
+  const [metasMes, setMetasMes] = useState<adm.MetaUsuario[]>([])
   const [gestiones, setGestiones] = useState<GestionMes[] | null>(null)
   const [cuentas, setCuentas] = useState<CuentaListado[] | null>(null)
   const [activas, setActivas] = useState<CuentaListado[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    Promise.all([adm.usuarios(), adm.asignaciones()])
+      .then(([u, a]) => {
+        setUsuarios(u)
+        setAsigs(a)
+      })
+      .catch((e: Error) => setError(e.message))
+  }, [])
+
+  useEffect(() => {
+    if (!corte) return
+    adm.metasUsuario(corte.slice(0, 7)).then(setMetasMes).catch((e: Error) => setError(e.message))
+  }, [corte])
 
   useEffect(() => {
     let vigente = true
@@ -116,6 +137,25 @@ export default function GestionCobros() {
   }, [corte, filtros])
 
   // Universo de créditos del filtro global (cohorte y cartera activa): la gestión se cuenta sobre ellos.
+  // Equipo de cobro (modules/metas.equipo_cobro): agentes de rol «agente» con alguna meta del mes; si nadie tiene
+  // metas, todos los agentes. Luego se filtra por departamento y tramo de la asignación del mes.
+  const periodoMes = corte ? corte.slice(0, 7) : ''
+  const equipo = useMemo(() => {
+    if (!usuarios) return null
+    const base = usuarios.filter((u) => u.tipo === 'agente' && (!u.rol || u.rol === 'agente') && !EXCLUIDOS_GESTION_USUARIOS.has(u.usuario_norm.toLowerCase()))
+    const conMetas = base.filter((u) => metasMes.some((m) => m.usuario_id === u.id && m.valor_meta !== null))
+    const lista = conMetas.length ? conMetas : base
+    const asignacion = (uid: number) => asigs.filter((a) => a.usuario_id === uid && a.periodo <= periodoMes)
+      .sort((a, b) => b.periodo.localeCompare(a.periodo))[0]
+    return new Set(lista.filter((u) => {
+      const a = asignacion(u.id)
+      return (!departamento || a?.departamento === departamento) && (!tramo || a?.tramo === tramo)
+    }).map((u) => u.usuario_norm.toLowerCase()))
+  }, [usuarios, metasMes, asigs, periodoMes, departamento, tramo])
+
+  const tramos = useMemo(() => [...new Set(asigs.map((a) => a.tramo).filter((t): t is string => !!t))].sort(), [asigs])
+  const deptos = useMemo(() => [...new Set(asigs.map((a) => a.departamento).filter((t): t is string => !!t))].sort(), [asigs])
+
   const universo = useMemo(() => new Map((cuentas ?? []).map((c) => [c.credito, c] as const)), [cuentas])
 
   const filtradas = useMemo(() => {
@@ -126,11 +166,12 @@ export default function GestionCobros() {
       if (periodo === PERIODOS[1] && dia !== corte) return false
       const c = universo.get(g.credito)
       if (!c) return false
+      if (equipo && !equipo.has(g.usuario.trim().toLowerCase())) return false
       if (top === 'Solo cuentas Top' && !c.top) return false
       if (top === 'Sin cuentas Top' && c.top) return false
       return true
     })
-  }, [gestiones, corte, periodo, top, universo])
+  }, [gestiones, corte, periodo, top, universo, equipo])
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudo cargar la gestión: {error}</div>
@@ -228,6 +269,8 @@ export default function GestionCobros() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end', marginBottom: 8 }}>
           <Radios etiqueta="Periodo" opciones={[...PERIODOS]} valor={periodo} onChange={setPeriodo} />
           <SelectBox etiqueta="Cuentas Top" opciones={TOP.map((t) => ({ valor: t, etiqueta: t }))} valor={top} onChange={setTop} />
+          <SelectBox etiqueta="Departamento" opciones={[{ valor: '', etiqueta: 'Todos' }, ...deptos.map((d) => ({ valor: d, etiqueta: d }))]} valor={departamento} onChange={setDepartamento} />
+          <SelectBox etiqueta="Tramo" opciones={[{ valor: '', etiqueta: 'Todos' }, ...tramos.map((t) => ({ valor: t, etiqueta: t }))]} valor={tramo} onChange={setTramo} />
         </div>
       </div>
 
