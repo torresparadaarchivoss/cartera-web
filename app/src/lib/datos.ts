@@ -148,6 +148,8 @@ export interface FilaPromesaTabla {
   vencidas: number
   vigentes: number
   promesado_mes: number
+  vigentes_saldo: number
+  cartera_saldo: number
 }
 
 export async function promesasTabla(fecha: string, medida: 'monto' | 'saldo', f: Filtros, s: FiltrosSeccion): Promise<FilaPromesaTabla[]> {

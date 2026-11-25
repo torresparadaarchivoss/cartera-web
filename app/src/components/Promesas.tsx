@@ -75,7 +75,8 @@ export default function Promesas({ corte, filtros }: Props) {
   const medidaTexto = medida.toLowerCase()
   const tot = (k: keyof FilaPromesaTabla) => filas.reduce((a, f) => a + (f[k] as number), 0)
   const totVig = tot('vigentes')
-  const totPromesado = tot('promesado_mes')
+  const totVigSaldo = tot('vigentes_saldo')
+  const totCartera = tot('cartera_saldo')
   const totVenc = tot('vencidas')
 
   const kpi = (e: keyof PromesasResumen, etiqueta: string, tono: 'info' | 'neutro' | 'bueno' = 'neutro') => {
@@ -100,7 +101,7 @@ export default function Promesas({ corte, filtros }: Props) {
       mode: 'lines+markers',
       x: (serie ?? []).map((p) => p.fecha),
       y: (serie ?? []).map((p) => (medida === 'Saldo del crédito' ? p.vig_saldo : p.vig_monto)),
-      name: `Vigentes (${medidaTexto})`,
+      name: `Promesas activas (${medidaTexto})`,
       yaxis: 'y2',
       line: { color: '#202050', width: 2.2 },
       marker: { size: 4 },
@@ -110,7 +111,7 @@ export default function Promesas({ corte, filtros }: Props) {
   return (
     <>
       <Titulo texto="Promesas"
-        ayuda="En vivo: la foto de cartera del día se toma antes de que empiece la gestión, así que aquí se suman también las promesas registradas durante el día. Vencidas: promesas del mes con fecha de pago anterior al corte. Vigentes: última promesa de cada crédito con fecha de pago desde el corte. Monto pagado: pendiente de esta versión." />
+        ayuda="En vivo: la foto de cartera del día se toma antes de que empiece la gestión, así que aquí se suman también las promesas registradas durante el día. Vencidas: promesas del mes con fecha de pago anterior al corte. Promesas activas: última promesa de cada crédito con fecha de pago desde el corte. Monto pagado: pendiente de esta versión." />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12, marginBottom: 8, maxWidth: 900 }}>
         <MultiSelect etiqueta="Supervisor" opciones={opciones?.supervisor ?? []} valor={sec.supervisor}
           formato={(v) => v || '(sin dato)'} onChange={(v) => setSec({ ...sec, supervisor: v })} />
@@ -128,7 +129,7 @@ export default function Promesas({ corte, filtros }: Props) {
       {cargando && !error && <p className="vacio">Cargando promesas…</p>}
       {resumen && (
         <FilaKpi>
-          {kpi('Vigentes', 'Promesas vigentes', 'info')}
+          {kpi('Vigentes', 'Promesas activas', 'info')}
           {kpi('Vencidas', 'Promesas vencidas')}
           {kpi('Promesado del mes', 'Promesado del mes')}
           <Kpi etiqueta="Monto pagado" valor={dinero(pagado)}
@@ -139,24 +140,24 @@ export default function Promesas({ corte, filtros }: Props) {
 
       {tabla && <Tabla
         titulo={`Promesas por bucket de inicio · ${medidaTexto} al ${fecha(corte)}`}
-        ayuda="Filas: bucket de inicio del mes (mora de referencia del loantape). Del bucket 0 solo las cuentas que hoy están en mora («0 (desmejora)»). % vigentes = vigentes ÷ promesado del mes."
+        ayuda="Filas: bucket de inicio del mes (mora de referencia del loantape). Del bucket 0 solo las cuentas que hoy están en mora («0 (desmejora)»). % de cartera de las vigentes (en saldo) = saldo de las promesas activas ÷ saldo de la cartera del bucket al corte."
         etiquetaFila="Bucket de inicio"
         cabeceras={[
           { etiqueta: 'Vencidas', formato: (x) => dinero(x) },
-          { etiqueta: 'Vigentes', formato: (x) => dinero(x) },
-          { etiqueta: '% vigentes', formato: (x) => pct(x) },
+          { etiqueta: 'Promesas activas', formato: (x) => dinero(x) },
+          { etiqueta: '% de cartera de las vigentes (en saldo)', formato: (x) => pct(x) },
         ]}
         filas={filas.map((f) => ({
           etiqueta: f.fila,
-          valores: [f.vencidas, f.vigentes, f.promesado_mes ? f.vigentes / f.promesado_mes : null],
+          valores: [f.vencidas, f.vigentes, f.cartera_saldo ? f.vigentes_saldo / f.cartera_saldo : null],
         }))}
-        total={{ etiqueta: 'Total', valores: [totVenc, totVig, totPromesado ? totVig / totPromesado : null] }}
+        total={{ etiqueta: 'Total', valores: [totVenc, totVig, totCartera ? totVigSaldo / totCartera : null] }}
       />}
 
       {errorSerie && <div className="error-pantalla">La tendencia por día no se pudo cargar: {errorSerie}</div>}
       {serie && (
         <Grafico
-          titulo={`Promesas del día y vigentes al cierre · ${medidaTexto}`}
+          titulo={`Promesas del día y activas al cierre · ${medidaTexto}`}
           data={ventaDia}
           layout={{
             barmode: 'group',
@@ -166,7 +167,7 @@ export default function Promesas({ corte, filtros }: Props) {
           alto={340}
         />
       )}
-      <Nota texto="Barras: promesas registradas cada día. Línea: promesas vigentes al cierre del día. El día en curso no aparece hasta que cierra." />
+      <Nota texto="Barras: promesas registradas cada día. Línea: promesas activas al cierre del día. El día en curso no aparece hasta que cierra." />
     </>
   )
 }

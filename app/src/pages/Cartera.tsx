@@ -200,7 +200,6 @@ export default function Cartera() {
           { etiqueta: 'Saldo', formato: (x) => dinero(x) },
           { etiqueta: '% del saldo', formato: (x) => pct(x) },
           { etiqueta: 'Cuentas en mora', formato: (x) => entero(x) },
-          { etiqueta: 'Índice de mora 90+', formato: (x) => pct(x) },
           { etiqueta: 'Cobertura de gestión', formato: (x) => pct(x) },
           { etiqueta: 'Tasa RPC', formato: (x) => pct(x) },
           { etiqueta: 'Monto prometido', formato: (x) => dinero(x) },
@@ -208,9 +207,9 @@ export default function Cartera() {
         ]}
         filas={tabla.map((f) => ({
           etiqueta: f.grupo,
-          valores: [f.cuentas, f.saldo, f.porcentaje, f.cuentas_mora, f.indice, f.cobertura, f.tasa_rpc, f.monto_prometido, f.monto_pagado],
+          valores: [f.cuentas, f.saldo, f.porcentaje, f.cuentas_mora, f.cobertura, f.tasa_rpc, f.monto_prometido, f.monto_pagado],
         }))}
-        total={{ etiqueta: total.grupo, valores: [total.cuentas, total.saldo, total.porcentaje, total.cuentas_mora, total.indice, total.cobertura, total.tasa_rpc, total.monto_prometido, total.monto_pagado] }}
+        total={{ etiqueta: total.grupo, valores: [total.cuentas, total.saldo, total.porcentaje, total.cuentas_mora, total.cobertura, total.tasa_rpc, total.monto_prometido, total.monto_pagado] }}
       />
 
       <Grafico

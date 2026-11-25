@@ -96,8 +96,10 @@ export default function Resumen() {
         <Kpi etiqueta="Bucket 0 que desmejoran sin gestión" valor={entero(b0.sin_gestion)}
           detalle={`de ${entero(b0.desmejoran)} que pasaron a mora`} tono="malo" />
       </FilaKpi>
-      <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
-        layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
+      <div style={{ maxWidth: 520 }}>
+        <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
+          layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
+      </div>
 
       <Promesas corte={corte} filtros={filtros} />
 

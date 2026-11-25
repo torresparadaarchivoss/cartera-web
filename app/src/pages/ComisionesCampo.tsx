@@ -186,7 +186,7 @@ export default function ComisionesCampo() {
         <div className="dc-tarjeta" key={eq}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <Titulo texto={`Resumen · equipo ${eq}`} />
-            <button className="boton" onClick={() => setVerComision((v) => !v)}>{verComision ? 'Ocultar comisiones' : 'Mostrar comisiones'}</button>
+            <button className="boton" onClick={() => setVerComision((v) => !v)}>{verComision ? 'Ocultar' : 'Mostrar'}</button>
           </div>
           {filas.length === 0 ? <Nota tipo="alerta" texto="Sin motorizados en este equipo." /> : (
             <div style={{ overflow: 'auto' }}>
