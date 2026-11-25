@@ -68,7 +68,7 @@ export default function MetasCumplimiento() {
 
   const real = useMemo(() => {
     if (!gestiones || !visitas || !corte) return new Map<string, met.Real>()
-    return tipo === 'agente' ? met.realAgentes(gestiones, corte) : met.realVisitadores(visitas, corte)
+    return tipo === 'agente' ? met.realAgentes(gestiones, corte) : met.realVisitadores(visitas, gestiones, corte)
   }, [gestiones, visitas, corte, tipo])
 
   if (error) return <div className="error-pantalla">No se pudieron cargar las metas: {error}</div>
