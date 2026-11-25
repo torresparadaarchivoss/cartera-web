@@ -15,6 +15,7 @@ import VisitasCampo from './pages/VisitasCampo'
 import GestionCobros from './pages/GestionCobros'
 import FichaCredito from './pages/FichaCredito'
 import EvolucionMora from './pages/EvolucionMora'
+import Administracion from './pages/Administracion'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -72,7 +73,7 @@ export default function App() {
               path="/parametros"
               element={
                 <SoloAdmin>
-                  <p>Parámetros (pendiente de portar).</p>
+                  <Administracion />
                 </SoloAdmin>
               }
             />
