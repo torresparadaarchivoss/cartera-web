@@ -91,7 +91,7 @@ COLUMNAS = ["credito", "f_reporte", "saldo", "saldo_vencido", "dias_mora", "buck
 COLUMNAS_GESTION = ["gestiones_dia", "contacto_dia", "rpc_dia", "promesa_dia", "monto_promesa_dia",
                     "gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum",
                     "monto_promesa_acum"]
-COLUMNAS_MORA = ["bucket_inicial"]  # nulo = sin referencia (JUR o sin cierre de loantape)
+COLUMNAS_MORA = ["bucket_inicial", "dias_mora_inicial"]  # nulo = sin referencia (JUR o sin cierre de loantape)
 COLUMNAS_PAGO = ["monto_pagado_dia", "monto_pagado_acum"]
 
 # Pagos reales de clientes (database/pagos_queries.py): última foto del mes que contiene pagos.
@@ -191,8 +191,10 @@ def leer_mora_inicial(ini: dt.date) -> pd.DataFrame:
     lt["credito"] = lt.pop("comprobante").astype(str).str.strip() + " " + lt.pop("numero").astype(str).str.strip()
     jur = lt["codubidoc"].fillna("").astype(str).str.strip().str.upper().eq("JUR")
     lt = lt.loc[~jur, ["credito", "diasmora"]]
-    lt["bucket_inicial"] = pd.array([bucket(x) for x in pd.to_numeric(lt["diasmora"], errors="coerce")], dtype="Int64")
-    return lt[["credito", "bucket_inicial"]].drop_duplicates("credito", keep="last").reset_index(drop=True)
+    dias = pd.to_numeric(lt["diasmora"], errors="coerce")
+    lt["bucket_inicial"] = pd.array([bucket(x) for x in dias], dtype="Int64")
+    lt["dias_mora_inicial"] = dias.round().astype("Int64")
+    return lt[["credito", "bucket_inicial", "dias_mora_inicial"]].drop_duplicates("credito", keep="last").reset_index(drop=True)
 
 
 def leer_promesas(ini: dt.date, fin: dt.date, cartera: pd.DataFrame) -> pd.DataFrame:

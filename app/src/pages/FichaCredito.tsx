@@ -148,7 +148,8 @@ export default function FichaCredito() {
           <FilaKpi>
             <Kpi etiqueta={`Saldo al ${fecha(pri.f_reporte)}`} valor={dinero(pri.saldo, 2)} detalle="primer día del mes" />
             <Kpi etiqueta={`Saldo al ${fecha(ult.f_reporte)}`} valor={dinero(ult.saldo, 2)} detalle="saldo del día" tono="info" />
-            <Kpi etiqueta="Mora de referencia" valor={cuenta ? cuenta.origen : '—'} detalle="bucket inicial" />
+            <Kpi etiqueta="Mora de referencia" valor={ult.dias_mora_inicial === null ? (cuenta ? cuenta.origen : '—') : `${entero(ult.dias_mora_inicial)} días`}
+              detalle={cuenta ? `bucket inicial ${cuenta.origen}` : 'cierre de loantape'} />
             <Kpi etiqueta="Mora hoy" valor={ult.dias_mora === null ? '—' : `${entero(ult.dias_mora)} días`}
               detalle={ult.bucket_actual === null ? '—' : `bucket ${ult.bucket_actual}`} />
             <Kpi etiqueta="Evolución" valor={cuenta ? cuenta.movimiento : '—'} tono={cuenta?.movimiento === 'Mejora' ? 'bueno' : cuenta?.movimiento === 'Desmejora' ? 'malo' : 'neutro'} />

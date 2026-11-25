@@ -479,6 +479,7 @@ export interface HistorialCartera {
   saldo: number
   dias_mora: number | null
   bucket_actual: number | null
+  dias_mora_inicial: number | null
   gestor: string
   supervisor: string
   tipo_credito: string
@@ -495,7 +496,7 @@ export async function fichaCredito(credito: string): Promise<{
   historia: HistorialCartera[]; gestiones: GestionDetalle[]; pagos: PagoCredito[]; visitas: VisitaDetalle[]
 }> {
   const [h, g, p, v] = await Promise.all([
-    supabase.from('cobranza_diaria').select('f_reporte, saldo, dias_mora, bucket_actual, gestor, supervisor, tipo_credito, tipo_legal')
+    supabase.from('cobranza_diaria').select('f_reporte, saldo, dias_mora, bucket_actual, dias_mora_inicial, gestor, supervisor, tipo_credito, tipo_legal')
       .eq('credito', credito).order('f_reporte', { ascending: true }),
     supabase.from('gestion').select('credito, fecha_actividad, usuario, accion, resultado, contacto, rpc, promesa, monto_promesa, fecha_promesa')
       .eq('credito', credito).order('fecha_actividad', { ascending: false }),
