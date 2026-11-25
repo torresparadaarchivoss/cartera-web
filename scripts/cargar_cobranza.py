@@ -43,6 +43,8 @@ SELECT
     , LOWER(LTRIM(RTRIM(C.PR_MC_UASIGNADO)))     AS gestor
     , LTRIM(RTRIM(C.PR_CL_TIPO_CREDITO))         AS tipo_credito
     , ISNULL(LTRIM(RTRIM(C.PR_CL_TIPO_CREDITO_LEGAL)), '') AS tipo_legal
+    , CAST(C.PR_CL_VAL_CUOTA AS FLOAT)           AS valor_cuota
+    , CAST(C.PR_CL_DUE_IM AS FLOAT)              AS due_inicio_mes
 FROM dbo.th_mccollect_cartera_diaria_regional C
 WHERE C.PAIS = 'el salvador'
   AND C.F_REPORTE >= ? AND C.F_REPORTE < ?
@@ -85,7 +87,7 @@ SQL_MORA_LOANTAPE = ("SELECT * FROM OPENQUERY([loantape], 'SELECT comprobante, n
 
 LIMITES_BUCKET = (0, 30, 60, 90, 120, 150)  # igual que config.py del Streamlit
 COLUMNAS = ["credito", "f_reporte", "saldo", "saldo_vencido", "dias_mora", "bucket_actual",
-            "supervisor", "gestor", "tipo_credito", "tipo_legal", "tipo_cartera"]
+            "supervisor", "gestor", "tipo_credito", "tipo_legal", "tipo_cartera", "valor_cuota", "due_inicio_mes"]
 COLUMNAS_GESTION = ["gestiones_dia", "contacto_dia", "rpc_dia", "promesa_dia", "monto_promesa_dia",
                     "gestiones_acum", "gestionada_acum", "contacto_acum", "rpc_acum", "promesa_acum",
                     "monto_promesa_acum"]
@@ -143,6 +145,8 @@ def leer_cartera(ini: dt.date, fin: dt.date) -> pd.DataFrame:
     df["dias_mora"] = pd.to_numeric(df["dias_mora"], errors="coerce")
     for c in ("supervisor", "gestor", "tipo_credito", "tipo_legal"):
         df[c] = df[c].fillna("").astype(str)
+    for c in ("valor_cuota", "due_inicio_mes"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
     # Mismas reglas que services/calculations.py: bucket de mora y tipo de cartera (JUR = Legal).
     df["bucket_actual"] = pd.array([bucket(x) for x in df["dias_mora"]], dtype="Int64")
     df["tipo_cartera"] = df["tipo_legal"].str.strip().str.upper().map(

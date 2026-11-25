@@ -17,6 +17,7 @@ import FichaCredito from './pages/FichaCredito'
 import EvolucionMora from './pages/EvolucionMora'
 import Administracion from './pages/Administracion'
 import MetasCumplimiento from './pages/MetasCumplimiento'
+import ComisionesCampo from './pages/ComisionesCampo'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/ficha-credito" element={<FichaCredito />} />
             <Route path="/evolucion-mora" element={<EvolucionMora />} />
             <Route path="/metas" element={<MetasCumplimiento />} />
+            <Route path="/comisiones" element={<ComisionesCampo />} />
             <Route
               path="/parametros"
               element={

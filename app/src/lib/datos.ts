@@ -356,14 +356,20 @@ export interface VisitaDetalle {
   kilometros: number | null
 }
 
-// Consultas por lotes de créditos (la URL no admite listas muy largas).
+// Consultas por lotes de créditos (la URL no admite listas muy largas). Cada lote se pagina: la base devuelve
+// como máximo 1,000 filas por consulta.
 async function porLotes<T>(creditos: string[], tabla: string, columnas: string, orden: string): Promise<T[]> {
   const salida: T[] = []
   for (let i = 0; i < creditos.length; i += 300) {
     const lote = creditos.slice(i, i + 300)
-    const res = await supabase.from(tabla).select(columnas).in('credito', lote).order(orden, { ascending: false })
-    if (res.error) throw new Error(res.error.message)
-    salida.push(...((res.data ?? []) as T[]))
+    for (let desde = 0; ; desde += 1000) {
+      const res = await supabase.from(tabla).select(columnas).in('credito', lote)
+        .order(orden, { ascending: false }).range(desde, desde + 999)
+      if (res.error) throw new Error(res.error.message)
+      const filas = (res.data ?? []) as T[]
+      salida.push(...filas)
+      if (filas.length < 1000) break
+    }
   }
   return salida
 }
@@ -485,4 +491,16 @@ export async function fichaCredito(credito: string): Promise<{
     pagos: (p.data ?? []) as PagoCredito[],
     visitas: (v.data ?? []) as VisitaDetalle[],
   }
+}
+
+export function pagosMes(): Promise<{ credito: string; fecha: string; pago: number }[]> {
+  return todasLasFilas('pago', 'credito, fecha, pago', 'fecha')
+}
+
+export function carteraDeCreditos(creditos: string[]): Promise<{
+  credito: string; f_reporte: string; saldo: number; saldo_vencido: number | null; valor_cuota: number | null
+  due_inicio_mes: number | null; tipo_cartera: string; tipo_legal: string
+}[]> {
+  return porLotes(creditos, 'cobranza_diaria',
+    'credito, f_reporte, saldo, saldo_vencido, valor_cuota, due_inicio_mes, tipo_cartera, tipo_legal', 'f_reporte')
 }

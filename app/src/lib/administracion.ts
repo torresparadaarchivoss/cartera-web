@@ -120,3 +120,12 @@ export async function presupuestoFpd(): Promise<PresupuestoFpd[]> {
 export async function guardarPresupuestoFpd(p: PresupuestoFpd): Promise<void> {
   revisar(await supabase.from('presupuesto_fpd').upsert(p, { onConflict: 'mes' }).select('mes'))
 }
+
+// Parámetros de comisión: por clave, el valor del último periodo registrado hasta el periodo (si no hay, el tablero).
+export async function parametrosComision(periodo: string): Promise<Record<string, number>> {
+  const filas = revisar(await supabase.from('parametros_comision').select('periodo, clave, valor').lte('periodo', periodo)
+    .order('periodo', { ascending: false })) as { periodo: string; clave: string; valor: number }[]
+  const salida: Record<string, number> = {}
+  for (const f of filas) if (!(f.clave in salida)) salida[f.clave] = Number(f.valor)
+  return salida
+}

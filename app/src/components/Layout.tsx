@@ -14,7 +14,7 @@ const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { etiqueta: 'Coreografías de gestión' },
   { ruta: '/recuperacion', etiqueta: 'Recuperación' },
   { ruta: '/visitas-campo', etiqueta: 'Visitas de campo' },
-  { etiqueta: 'Comisiones de campo' },
+  { ruta: '/comisiones', etiqueta: 'Comisiones de campo' },
   { ruta: '/cuentas-gestionar', etiqueta: 'Cuentas a gestionar' },
   { ruta: '/ficha-credito', etiqueta: 'Ficha de crédito' },
   { ruta: '/metas', etiqueta: 'Metas y cumplimiento' },
