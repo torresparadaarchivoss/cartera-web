@@ -409,3 +409,26 @@ export function ubicacionesDe(creditos: string[]): Promise<UbicacionDetalle[]> {
   return porLotes<UbicacionDetalle>(creditos, 'visita_ubicacion',
     'credito, fecha_visita, visitador, resultado, latitud, longitud', 'fecha_visita')
 }
+
+// Visitas del mes completas (el listado de la base pasa de 1,000 filas: se pagina).
+async function todasLasFilas<T>(tabla: string, columnas: string, orden: string): Promise<T[]> {
+  const salida: T[] = []
+  for (let desde = 0; ; desde += 1000) {
+    const res = await supabase.from(tabla).select(columnas).order(orden, { ascending: true }).range(desde, desde + 999)
+    if (res.error) throw new Error(res.error.message)
+    const lote = (res.data ?? []) as T[]
+    salida.push(...lote)
+    if (lote.length < 1000) break
+  }
+  return salida
+}
+
+export function visitasMes(): Promise<VisitaDetalle[]> {
+  return todasLasFilas<VisitaDetalle>('visita',
+    'credito, fecha_visita, visitador, accion, resultado, causa_no_pago, parentesco, num_fotos, kilometros', 'fecha_visita')
+}
+
+export function ubicacionesMes(): Promise<UbicacionDetalle[]> {
+  return todasLasFilas<UbicacionDetalle>('visita_ubicacion',
+    'credito, fecha_visita, visitador, resultado, latitud, longitud', 'fecha_visita')
+}
