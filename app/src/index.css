@@ -44,7 +44,7 @@ a { color: var(--verde-marca); }
 .barra-sup .usuario { color: var(--gris); font-size: 0.85rem; }
 
 /* Layout con menú lateral */
-.con-lateral { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 56px); }
+.con-lateral { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 56px); }
 .lateral {
   background: var(--blanco);
   border-right: 1px solid var(--linea);
@@ -52,6 +52,10 @@ a { color: var(--verde-marca); }
   display: grid;
   gap: 12px;
   align-content: start;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .lateral .marca { font-size: 0.78rem; color: var(--gris); }
 .lateral label { font-size: 0.82rem; font-weight: 600; color: var(--indigo); display: grid; gap: 4px; }
@@ -77,7 +81,6 @@ a { color: var(--verde-marca); }
   border-radius: 12px;
   padding: 0.75rem 0.95rem 0.8rem;
   position: relative;
-  overflow: hidden;
   box-shadow: 0 1px 2px rgba(32, 32, 80, 0.04);
 }
 .dc-kpi::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--tono, var(--indigo)); }
@@ -179,8 +182,8 @@ input, select {
 /* Menú lateral como radios (como el Streamlit) */
 .menu { display: grid; gap: 2px; }
 .radio {
-  display: flex; align-items: center; gap: 10px; padding: 0.3rem 0.55rem; border-radius: 8px;
-  color: #31333f; text-decoration: none; font-size: 0.95rem; font-weight: 500;
+  display: flex; align-items: center; gap: 9px; padding: 0.25rem 0.5rem; border-radius: 8px;
+  color: #31333f; text-decoration: none; font-size: 0.92rem; font-weight: 500;
 }
 a.radio:hover { background: #f0f2f6; }
 .radio.activo { background: #e8f5ea; color: #389848; font-weight: 700; }
@@ -193,13 +196,13 @@ a.radio:hover { background: #f0f2f6; }
 /* Ayuda (?) y burbuja */
 .ayuda { position: relative; display: inline-flex; color: #8a8fa8; cursor: help; margin-left: 4px; vertical-align: middle; }
 .ayuda:focus { outline: none; }
-.burbuja {
-  display: none; position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+.burbuja-fija {
+  position: fixed; transform: translate(-50%, calc(-100% - 8px)); z-index: 1000; pointer-events: none;
   background: #262730; color: #fff; font-size: 0.85rem; font-weight: 400; line-height: 1.45; padding: 8px 12px;
-  border-radius: 6px; width: max-content; max-width: 320px; white-space: normal; z-index: 100;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2); text-align: left;
+  border-radius: 6px; width: max-content; max-width: 320px; white-space: normal; text-align: left;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
-.ayuda:hover .burbuja, .ayuda:focus .burbuja { display: block; }
+
 
 /* Fondo de los selectores como el Streamlit */
 .st-caja { background: #f0f2f6; border-color: transparent; }

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
 import type { Data, Layout } from 'plotly.js'
@@ -15,17 +16,33 @@ export const TONOS = {
 } as const
 export type Tono = keyof typeof TONOS
 
-// Ícono de ayuda con burbuja oscura al pasar el mouse (como el «?» de Streamlit).
+// Ícono de ayuda. La burbuja se dibuja en el body (portal) para que ningún contenedor la recorte.
 export function Ayuda({ texto }: { texto: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const abrir = () => {
+    const r = ref.current?.getBoundingClientRect()
+    if (!r) return
+    const margen = 170 // mitad del ancho máximo de la burbuja, para no salirse de la pantalla
+    const x = Math.min(Math.max(r.left + r.width / 2, margen), window.innerWidth - margen)
+    setPos({ x, y: r.top })
+  }
+  const cerrar = () => setPos(null)
   return (
-    <span className="ayuda" tabIndex={0} aria-label={texto}>
-      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M6.2 6.3a1.9 1.9 0 1 1 2.6 1.75c-.5.2-.8.6-.8 1.1v.35" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-        <circle cx="8" cy="11.3" r=".9" fill="currentColor" />
-      </svg>
-      <span className="burbuja" role="tooltip">{texto}</span>
-    </span>
+    <>
+      <span ref={ref} className="ayuda" tabIndex={0} aria-label={texto}
+        onMouseEnter={abrir} onMouseLeave={cerrar} onFocus={abrir} onBlur={cerrar}>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M6.2 6.3a1.9 1.9 0 1 1 2.6 1.75c-.5.2-.8.6-.8 1.1v.35" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <circle cx="8" cy="11.3" r=".9" fill="currentColor" />
+        </svg>
+      </span>
+      {pos && createPortal(
+        <div className="burbuja-fija" role="tooltip" style={{ left: pos.x, top: pos.y }}>{texto}</div>,
+        document.body,
+      )}
+    </>
   )
 }
 
