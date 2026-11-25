@@ -19,6 +19,11 @@ const UMBRAL_VERDE = 1
 const UMBRAL_AMARILLO = 0.8
 const ESC: Record<string, string> = { Rojo: CELDA_SEM.Rojo, Amarillo: CELDA_SEM.Amarillo, Verde: CELDA_SEM.Verde }
 
+// Agentes de call center: rol «agente» (los visitadores y supervisores que registran gestiones no cuentan).
+// Usuarios que no son agentes de cobro (config.USUARIOS_EXCLUIDOS_GESTION): fuera de metas y embudos.
+const EXCLUIDOS_GESTION = new Set(['arrivasg', 'cdhidalgog', 'eabaltodanom', 'gssolag', 'instacredit', 'jmcastillod', 'mggutierrezl', 'mncanasg'])
+const esAgente = (u: Usuario) => (!u.rol || u.rol === 'agente') && !EXCLUIDOS_GESTION.has(u.usuario_norm.toLowerCase())
+
 function fmt(x: number | null | undefined, f: met.Indicador['formato']): string {
   if (x === null || x === undefined || Number.isNaN(x)) return '—'
   if (f === 'dinero') return dinero(x)
@@ -73,7 +78,7 @@ export default function MetasCumplimiento() {
 
   const ev = useMemo(() => {
     if (!usuarios || !gestiones || !visitas || !corte) return []
-    const base = usuarios.filter((u) => u.tipo === tipo && (verInactivos || u.estado === 'activo'))
+    const base = usuarios.filter((u) => u.tipo === tipo && esAgente(u) && (verInactivos || u.estado === 'activo'))
       .filter((u) => {
         const a = asig.filter((x) => x.usuario_id === u.id && x.periodo <= periodo)
           .sort((x, y) => y.periodo.localeCompare(x.periodo))[0]
@@ -113,9 +118,9 @@ export default function MetasCumplimiento() {
   const conGrafico = enIndicador.filter((f) => f.cumplimiento !== null)
 
   // Embudo del mes a la fecha (modules/metas._embudos): gestiones y cuentas, para el equipo filtrado o un agente.
-  const elegido = usuarios.find((u) => u.tipo === 'agente' && u.usuario_norm.toLowerCase() === embudo.toLowerCase())
+  const elegido = usuarios.find((u) => u.tipo === 'agente' && esAgente(u) && u.usuario_norm.toLowerCase() === embudo.toLowerCase())
   const quienes = new Set(
-    (elegido ? [elegido] : usuarios.filter((u) => u.tipo === 'agente' && ev.some((f) => f.usuario_id === u.id)))
+    (elegido ? [elegido] : usuarios.filter((u) => u.tipo === 'agente' && esAgente(u) && ev.some((f) => f.usuario_id === u.id)))
       .map((u) => u.usuario_norm.trim().toLowerCase()),
   )
   const gEmbudo = gestiones.filter((g) => quienes.has(g.usuario.trim().toLowerCase()) && g.fecha_actividad.slice(0, 10) <= corte)
@@ -131,7 +136,7 @@ export default function MetasCumplimiento() {
     type: 'funnel', y: etapas, x: valores, textinfo: 'value+percent initial', marker: { color: colores },
   } as unknown as Data]
   // Cumplimiento diario (modules/metas._diario): agente × día laborable, con la meta diaria de Administración.
-  const agentesFiltrados = usuarios.filter((u) => u.tipo === 'agente' && (verInactivos || u.estado === 'activo'))
+  const agentesFiltrados = usuarios.filter((u) => u.tipo === 'agente' && esAgente(u) && (verInactivos || u.estado === 'activo'))
     .filter((u) => {
       const a = asig.filter((x) => x.usuario_id === u.id && x.periodo <= periodo).sort((x, y) => y.periodo.localeCompare(x.periodo))[0]
       return (!supervisor || a?.supervisor === supervisor) && (!departamento || a?.departamento === departamento)
@@ -349,7 +354,7 @@ export default function MetasCumplimiento() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
             <Titulo texto={`Embudo de gestión · ${nombreEmbudo}`} />
             <SelectBox etiqueta="Embudo de" valor={embudo} onChange={setEmbudo}
-              opciones={[{ valor: '', etiqueta: 'Todo el equipo' }, ...usuarios.filter((u) => u.tipo === 'agente' && u.estado === 'activo')
+              opciones={[{ valor: '', etiqueta: 'Todo el equipo' }, ...usuarios.filter((u) => u.tipo === 'agente' && esAgente(u) && u.estado === 'activo')
                 .map((u) => ({ valor: u.usuario_norm, etiqueta: u.nombre_mostrado || u.usuario_norm }))]} />
           </div>
           {gEmbudo.length === 0 ? <Nota tipo="alerta" texto="Sin gestiones para el embudo con esta selección." /> : (

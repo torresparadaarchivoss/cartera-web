@@ -11,6 +11,7 @@ export interface Usuario {
   usuario_norm: string
   nombre_mostrado: string | null
   estado: 'activo' | 'inactivo'
+  rol: string | null
 }
 
 export interface Asignacion {
@@ -51,7 +52,7 @@ function revisar<T>(res: { data: T | null; error: { message: string } | null }):
 }
 
 export async function usuarios(): Promise<Usuario[]> {
-  return revisar(await supabase.from('usuarios').select('id, tipo, usuario_norm, nombre_mostrado, estado')
+  return revisar(await supabase.from('usuarios').select('id, tipo, usuario_norm, nombre_mostrado, estado, rol')
     .order('tipo').order('usuario_norm'))
 }
 
