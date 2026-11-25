@@ -158,13 +158,11 @@ export default function MetasCumplimiento() {
       <div className="dc-tarjeta">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end', marginBottom: 8 }}>
           <Radios etiqueta="Vista" opciones={[...VISTAS]} valor={vista} onChange={(v) => setVista(v)} />
-          <Radios etiqueta="Mostrar" opciones={[...MOSTRAR]} valor={mostrar} onChange={setMostrar} />
           <label style={{ fontSize: 13 }}>
             <input type="checkbox" checked={verInactivos} onChange={(e) => setVerInactivos(e.target.checked)} /> Inactivos
           </label>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
-          <SelectBox etiqueta="Indicador" opciones={indicadores.map((i) => ({ valor: i.clave, etiqueta: i.etiqueta }))} valor={indicador} onChange={setIndicador} />
           {tipo === 'agente' && (
             <>
               <SelectBox etiqueta="Supervisor" opciones={[{ valor: '', etiqueta: 'Todos' }, ...supervisores.map((s) => ({ valor: s, etiqueta: s }))]} valor={supervisor} onChange={setSupervisor} />
@@ -287,7 +285,13 @@ export default function MetasCumplimiento() {
       )}
 
       <div className="dc-tarjeta">
-        <Titulo texto={`Meta contra resultado · ${ind.etiqueta}`} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
+          <Titulo texto={`Meta contra resultado · ${ind.etiqueta}`} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-end' }}>
+            <SelectBox etiqueta="Indicador" opciones={indicadores.map((i) => ({ valor: i.clave, etiqueta: i.etiqueta }))} valor={indicador} onChange={setIndicador} />
+            <Radios etiqueta="Mostrar" opciones={[...MOSTRAR]} valor={mostrar} onChange={setMostrar} />
+          </div>
+        </div>
         <div className="ventana" style={{ maxHeight: 420 }}>
           <table className="dc-tabla">
             <thead>
@@ -312,7 +316,7 @@ export default function MetasCumplimiento() {
                       <>
                         <td style={celda(f.semaforo)}>{f.cumplimiento === null ? '—' : pct(f.cumplimiento)}</td>
                         <td style={celda(met.semaforoCon(f.avance, UMBRAL_VERDE, UMBRAL_AMARILLO))}>{f.avance === null ? '—' : pct(f.avance)}</td>
-                        <td>{f.semaforo ? <span style={{ color: PUNTO_SEM[f.semaforo] }}>●</span> : '—'} {f.semaforo ?? ''}</td>
+                        <td style={f.semaforo ? { background: ESC[f.semaforo], fontWeight: 600 } : {}}>{f.semaforo ? <span style={{ color: PUNTO_SEM[f.semaforo] }}>●</span> : '—'} {f.semaforo ?? ''}</td>
                       </>
                     ) : (
                       <>
@@ -321,7 +325,7 @@ export default function MetasCumplimiento() {
                         <td>{fmt(f.meta_mes, ind.formato)}</td>
                         <td>{fmt(f.meta_a_fecha, ind.formato)}</td>
                         <td>{fmt(f.diferencia, ind.formato)}</td>
-                        <td>{f.semaforo ? <span style={{ color: PUNTO_SEM[f.semaforo] }}>●</span> : '—'} {f.semaforo ?? ''}</td>
+                        <td style={f.semaforo ? { background: ESC[f.semaforo], fontWeight: 600 } : {}}>{f.semaforo ? <span style={{ color: PUNTO_SEM[f.semaforo] }}>●</span> : '—'} {f.semaforo ?? ''}</td>
                       </>
                     )}
                   </tr>
@@ -335,16 +339,16 @@ export default function MetasCumplimiento() {
                     <>
                       <td style={celda(totSem)}>{totCumple === null ? '—' : pct(totCumple)}</td>
                       <td style={celda(met.semaforoCon(totAvance, UMBRAL_VERDE, UMBRAL_AMARILLO))}>{totAvance === null ? '—' : pct(totAvance)}</td>
-                      <td>{totSem ?? ''}</td>
+                      <td style={celda(totSem)}>{totSem ?? ''}</td>
                     </>
                   ) : (
                     <>
                       <td>{fmt(conMeta.reduce((a, f) => a + f.real_dia, 0), ind.formato)}</td>
-                      <td>{fmt(totReal, ind.formato)}</td>
+                      <td style={celda(totSem)}>{fmt(totReal, ind.formato)}</td>
                       <td>{fmt(totMetaMes, ind.formato)}</td>
                       <td>{fmt(totMetaFecha, ind.formato)}</td>
                       <td>{fmt(totReal - totMetaFecha, ind.formato)}</td>
-                      <td>{totSem ?? ''}</td>
+                      <td style={celda(totSem)}>{totSem ?? ''}</td>
                     </>
                   )}
                 </tr>
