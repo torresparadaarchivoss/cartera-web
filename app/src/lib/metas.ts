@@ -94,3 +94,43 @@ export function cumplimiento(real: number, metaAFecha: number | null): number | 
 
 export const normalizarUsuario = (tipo: TipoMeta, usuario: string) =>
   tipo === 'agente' ? normAgente(usuario) : normVisitador(usuario)
+
+// Meta mensual de gestiones cuando no se capturó: meta día hábil × días hábiles del mes + meta sábado × sábados
+// (services/targets_engine.completar_mensuales). Lunes a viernes pesan según PESOS; el sábado cuenta si su peso es > 0.
+export function diasDelMes(periodo: string, pesos: number[]): { habiles: number; sabados: number } {
+  const [a, m] = periodo.split('-').map(Number)
+  const fin = new Date(a, m, 0).getDate()
+  let habiles = 0
+  let sabados = 0
+  for (let dia = 1; dia <= fin; dia++) {
+    const d = new Date(a, m - 1, dia).getDay() // 0 = domingo
+    const idx = (d + 6) % 7 // 0 = lunes … 6 = domingo, como PESOS_DIAS
+    if (idx < 5) habiles += pesos[idx] / pesos[0]
+    if (idx === 5 && pesos[5] > 0) sabados += 1
+  }
+  return { habiles, sabados }
+}
+
+export interface MetaFila {
+  usuario_id: number
+  indicador: string
+  valor_meta: number | null
+}
+
+// Devuelve las metas del mes con la mensual de gestiones derivada (marcada) cuando falte.
+export function completarGestiones(metas: MetaFila[], periodo: string, pesos: number[]): (MetaFila & { derivada?: boolean })[] {
+  const salida: (MetaFila & { derivada?: boolean })[] = [...metas]
+  const { habiles, sabados } = diasDelMes(periodo, pesos)
+  const ids = new Set(metas.map((m) => m.usuario_id))
+  const llenas = (ind: string) => new Map(metas.filter((m) => m.indicador === ind && m.valor_meta !== null)
+    .map((m) => [m.usuario_id, m.valor_meta as number] as const))
+  const habil = llenas('gestion_habil')
+  const sabado = llenas('gestion_sabado')
+  const yaMensual = new Set(metas.filter((m) => m.indicador === 'gestiones' && m.valor_meta !== null).map((m) => m.usuario_id))
+  for (const uid of ids) {
+    if (yaMensual.has(uid) || !habil.has(uid)) continue
+    const valor = (habil.get(uid) ?? 0) * habiles + (sabado.get(uid) ?? (habil.get(uid) ?? 0) * (pesos[5] / pesos[0] || 0)) * sabados
+    salida.push({ usuario_id: uid, indicador: 'gestiones', valor_meta: valor, derivada: true })
+  }
+  return salida
+}

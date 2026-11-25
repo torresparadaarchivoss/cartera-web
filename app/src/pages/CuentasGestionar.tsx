@@ -9,6 +9,7 @@ import { FilaKpi, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
 import { useAuth } from '../lib/auth'
 import { descargarExcel, type Hoja } from '../lib/exportar'
+import { RUTAS, tipoRuta } from '../lib/rutas'
 import type { Data } from 'plotly.js'
 
 // Cuentas a gestionar (modules/cuentas.py). El mapa de visitas y los datos del cliente solo se cargan para
@@ -91,6 +92,8 @@ export default function CuentasGestionar() {
   const [gest, setGest] = useState<GestionDetalle[]>([])
   const [vis, setVis] = useState<VisitaDetalle[]>([])
   const [clientes, setClientes] = useState<ClienteDetalle[]>([])
+  const [rutaDom, setRutaDom] = useState<string[]>([])
+  const [rutaTrab, setRutaTrab] = useState<string[]>([])
   const [ubicaciones, setUbicaciones] = useState<UbicacionDetalle[]>([])
   const [error, setError] = useState<string | null>(null)
   const { perfil } = useAuth()
@@ -112,8 +115,31 @@ export default function CuentasGestionar() {
 
   const base = useMemo(() => (cuentas ?? []).slice().sort(ordenar), [cuentas])
 
+  // Datos del cliente de todas las cuentas (solo administradores): los tipos de ruta filtran sobre toda la base.
+  useEffect(() => {
+    if (!esAdmin || !cuentas) {
+      setClientes([])
+      return
+    }
+    let vigente = true
+    datos.clientesDe(cuentas.map((c) => c.credito))
+      .then((cl) => vigente && setClientes(cl))
+      .catch((e: Error) => vigente && setError(e.message))
+    return () => {
+      vigente = false
+    }
+  }, [cuentas, esAdmin])
+
+  const clientePorCredito = useMemo(() => new Map(clientes.map((c) => [c.credito, c] as const)), [clientes])
+  const rutasDe = (credito: string) => {
+    const c = clientePorCredito.get(credito)
+    return { dom: tipoRuta(c?.ubicacion), trab: tipoRuta(c?.dire_trabajo) }
+  }
+
   const lista = useMemo(() => {
     let x = base
+    if (esAdmin && rutaDom.length) x = x.filter((c) => rutaDom.includes(rutasDe(c.credito).dom))
+    if (esAdmin && rutaTrab.length) x = x.filter((c) => rutaTrab.includes(rutasDe(c.credito).trab))
     if (estrategia === 'Cuentas Top') x = x.filter((c) => c.top)
     if (movs.length) x = x.filter((c) => movs.includes(c.movimiento))
     if (bIni.length) x = x.filter((c) => bIni.includes(c.origen))
@@ -125,7 +151,7 @@ export default function CuentasGestionar() {
     if (minSinGestion) x = x.filter((c) => c.dias_sin_gestion === null || c.dias_sin_gestion >= minSinGestion)
     if (buscar.trim()) x = x.filter((c) => c.credito.toLowerCase().includes(buscar.trim().toLowerCase()))
     return x
-  }, [base, estrategia, movs, bIni, bAct, prios, estados, visita, minSinGestion, buscar])
+  }, [base, estrategia, movs, bIni, bAct, prios, estados, visita, minSinGestion, buscar, esAdmin, rutaDom, rutaTrab, clientePorCredito])
 
   // Gestiones y visitas de las cuentas listadas (solo cuando hay pocas, para no traer miles de filas).
   useEffect(() => {
@@ -133,7 +159,6 @@ export default function CuentasGestionar() {
     if (creditos.length === 0) {
       setGest([])
       setVis([])
-      setClientes([])
       setUbicaciones([])
       return
     }
@@ -147,12 +172,9 @@ export default function CuentasGestionar() {
       })
       .catch((e: Error) => vigente && setError(e.message))
     if (esAdmin) {
-      Promise.all([datos.clientesDe(creditos), datos.ubicacionesDe(creditos)])
-        .then(([cl, ub]) => {
-          if (vigente) {
-            setClientes(cl)
-            setUbicaciones(ub)
-          }
+      datos.ubicacionesDe(creditos)
+        .then((ub) => {
+          if (vigente) setUbicaciones(ub)
         })
         .catch((e: Error) => vigente && setError(e.message))
     }
@@ -196,8 +218,16 @@ export default function CuentasGestionar() {
     { e: 'Visitas del mes', f: (c) => entero(c.visitas_mes) },
   ]
 
+  const clientesListados = useMemo(() => {
+    const ids = new Set(lista.map((c) => c.credito))
+    return clientes.filter((c) => ids.has(c.credito))
+  }, [clientes, lista])
+
   const descargarTodo = () => {
-    const hojaCuentas = lista.map((c) => Object.fromEntries(cols.map((col) => [col.e, col.f(c)])))
+    const hojaCuentas = lista.map((c) => ({
+      ...Object.fromEntries(cols.map((col) => [col.e, col.f(c)])),
+      ...(esAdmin ? { 'Tipo de ruta domicilio': rutasDe(c.credito).dom, 'Tipo de ruta trabajo': rutasDe(c.credito).trab } : {}),
+    }))
     const hojaGest = gest.map((g) => ({
       Fecha: g.fecha_actividad.slice(0, 10), Crédito: g.credito, Agente: g.usuario, Acción: g.accion, Resultado: g.resultado,
       Contacto: g.contacto ? 'Sí' : 'No', RPC: g.rpc ? 'Sí' : 'No', Promesa: g.promesa ? 'Sí' : 'No',
@@ -209,7 +239,7 @@ export default function CuentasGestionar() {
     }))
     const hojas: Hoja[] = [{ nombre: 'Cuentas', filas: hojaCuentas }, { nombre: 'Gestiones', filas: hojaGest }, { nombre: 'Visitas', filas: hojaVis }]
     if (esAdmin) {
-      hojas.push({ nombre: 'Datos del cliente', filas: clientes.map((c) => ({
+      hojas.push({ nombre: 'Datos del cliente', filas: clientesListados.map((c) => ({
         Crédito: c.credito, Nombre: c.nombre_deudor ?? '', Edad: c.edad ?? '', Género: c.genero ?? '', Salario: c.salario ?? '',
         Profesión: c.profesion ?? '', Domicilio: c.ubicacion ?? '', 'Dirección de trabajo': c.dire_trabajo ?? '', Ciudad: c.ciudad ?? '',
       })) })
@@ -237,6 +267,12 @@ export default function CuentasGestionar() {
           <MultiSelect etiqueta="Prioridad" opciones={distintos(base.map((c) => c.prioridad))} valor={prios} onChange={setPrios}
             formato={etiquetaPrioridad} placeholder="Todas" />
           <MultiSelect etiqueta="Estado de cobranza" opciones={distintos(base.map((c) => c.estado_cobranza))} valor={estados} onChange={setEstados} placeholder="Todos" />
+          {esAdmin && (
+            <>
+              <MultiSelect etiqueta="Tipo de ruta domicilio" opciones={[...RUTAS]} valor={rutaDom} onChange={setRutaDom} placeholder="Todas" />
+              <MultiSelect etiqueta="Tipo de ruta trabajo" opciones={[...RUTAS]} valor={rutaTrab} onChange={setRutaTrab} placeholder="Todas" />
+            </>
+          )}
           <SelectBox etiqueta="Visita en el mes" opciones={[
             { valor: 'Todas', etiqueta: 'Todas' }, { valor: 'Visitadas', etiqueta: 'Visitadas' }, { valor: 'Sin visita', etiqueta: 'Sin visita' },
           ]} valor={visita} onChange={setVisita} />
@@ -302,14 +338,14 @@ export default function CuentasGestionar() {
       {esAdmin && (
         <>
           <div className="dc-tarjeta">
-            <Titulo texto={`Datos del cliente (${entero(clientes.length)}) · solo administradores`} />
+            <Titulo texto={`Datos del cliente (${entero(clientesListados.length)}) · solo administradores`} />
             <div className="ventana">
               <table className="dc-tabla">
                 <thead>
                   <tr><th>Crédito</th><th>Nombre</th><th>Edad</th><th>Género</th><th>Salario</th><th>Profesión</th><th>Domicilio</th><th>Dirección de trabajo</th><th>Ciudad</th></tr>
                 </thead>
                 <tbody>
-                  {clientes.map((c) => (
+                  {clientesListados.map((c) => (
                     <tr key={c.credito}>
                       <td>{c.credito}</td><td>{c.nombre_deudor ?? '—'}</td><td>{c.edad ?? '—'}</td><td>{c.genero ?? '—'}</td>
                       <td>{c.salario === null ? '—' : dinero(c.salario)}</td><td>{c.profesion ?? '—'}</td>

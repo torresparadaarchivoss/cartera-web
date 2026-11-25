@@ -40,7 +40,7 @@ export default function Layout() {
     <>
       <header className="barra-sup">
         <button className="boton-menu" onClick={alternar} title={oculto ? 'Mostrar el menú' : 'Ocultar el menú'}>
-          {oculto ? '☰ Mostrar menú' : '☰ Ocultar menú'}
+          ☰
         </button>
         <img src={`${import.meta.env.BASE_URL}brand/logo_oscuro.png`} alt="Instacredit" />
         <span className="usuario">{perfil?.nombre ?? ''}</span>
