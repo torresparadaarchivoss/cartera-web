@@ -8,6 +8,7 @@ import { FilaKpi, Grafico, Kpi, Nota, Plot, Tabla, Titulo } from '../components/
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
 import type { Data, Layout } from 'plotly.js'
 import { descargarExcel } from '../lib/exportar'
+import { kmTotal } from '../lib/kilometros'
 
 // Visitas de campo (modules/visitas.py). Adaptado a lo que hay en la base: la visita trae su crédito, visitador,
 // acción, resultado, causa de no pago, parentesco, fotos y km. El filtro de bucket de mora, el saldo visitado, el
@@ -121,7 +122,7 @@ export default function VisitasCampo() {
   const v = visitasFiltradas
   const visitadoresOpc = [...new Set(visitas.map((x) => x.visitador))].filter(Boolean).sort()
   const diasActivos = new Set(v.map((x) => `${x.visitador}|${x.fecha_visita.slice(0, 10)}`)).size
-  const km = v.reduce((a, x) => a + (x.kilometros ?? 0), 0)
+  const km = kmTotal(v)
   const fotos = v.reduce((a, x) => a + x.num_fotos, 0)
   const conFoto = v.filter((x) => x.num_fotos > 0).length
   const promesas = v.filter((x) => esPromesa(x.resultado)).length
@@ -134,7 +135,7 @@ export default function VisitasCampo() {
   const filaGrupo = (xs: VisitaDetalle[]) => {
     const creditos = new Set(xs.map((x) => x.credito)).size
     const dias = new Set(xs.map((x) => x.fecha_visita.slice(0, 10))).size
-    const kms = xs.reduce((a, x) => a + (x.kilometros ?? 0), 0)
+    const kms = kmTotal(xs)
     const prom = xs.filter((x) => esPromesa(x.resultado)).length
     const f = xs.reduce((a, x) => a + x.num_fotos, 0)
     return [xs.length, creditos, dias, dias ? xs.length / dias : null, kms, f, prom, xs.length ? prom / xs.length : null]

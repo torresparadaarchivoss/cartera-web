@@ -1,4 +1,5 @@
 import type { GestionMes, VisitaDetalle } from './datos'
+import { kmPorVisitador } from './kilometros'
 
 // Resultado real del mes a la fecha de corte por usuario (services/targets_engine.py: real_agentes y real_visitadores).
 // Pendiente: PRP (con y sin SGL) y monto pagado por gestor, que la base aún no trae.
@@ -36,8 +37,8 @@ export type Real = Record<string, number>
 const normAgente = (u: string) => u.trim().toLowerCase()
 const normVisitador = (u: string) => u.trim().toUpperCase()
 
-export function realAgentes(gestiones: GestionMes[], corte: string): Map<string, Real> {
-  const hasta = gestiones.filter((g) => g.fecha_actividad.slice(0, 10) <= corte)
+export function realAgentes(gestiones: GestionMes[], corte: string, soloDia = false): Map<string, Real> {
+  const hasta = gestiones.filter((g) => (soloDia ? g.fecha_actividad.slice(0, 10) === corte : g.fecha_actividad.slice(0, 10) <= corte))
   const out = new Map<string, Real>()
   const get = (u: string) => {
     const r = out.get(u) ?? { gestiones: 0, creditos_gestionados: 0, contactos: 0, rpc: 0, promesas: 0, prp: 0, monto_prometido: 0 }
@@ -71,20 +72,22 @@ export function realAgentes(gestiones: GestionMes[], corte: string): Map<string,
   return out
 }
 
-export function realVisitadores(visitas: VisitaDetalle[], gestiones: GestionMes[], corte: string): Map<string, Real> {
+export function realVisitadores(visitas: VisitaDetalle[], gestiones: GestionMes[], corte: string, soloDia = false): Map<string, Real> {
+  const enFecha = (d: string) => (soloDia ? d === corte : d <= corte)
   // PRP de un visitador: sus gestiones (con su mismo usuario) con código PRP, como en el Streamlit.
   const prp = new Map<string, number>()
   for (const g of gestiones) {
-    if (g.fecha_actividad.slice(0, 10) > corte) continue
+    if (!enFecha(g.fecha_actividad.slice(0, 10))) continue
     const u = normAgente(g.usuario)
     prp.set(u, (prp.get(u) ?? 0) + g.prp)
   }
-  const hasta = visitas.filter((v) => v.fecha_visita.slice(0, 10) <= corte)
+  const hasta = visitas.filter((v) => enFecha(v.fecha_visita.slice(0, 10)))
   const grupos = new Map<string, VisitaDetalle[]>()
   for (const v of hasta) {
     const u = normVisitador(v.visitador)
     grupos.set(u, [...(grupos.get(u) ?? []), v])
   }
+  const kmPorV = kmPorVisitador(hasta)
   const out = new Map<string, Real>()
   for (const [u, xs] of grupos) {
     const dias = new Set(xs.map((x) => x.fecha_visita.slice(0, 10))).size
@@ -92,7 +95,7 @@ export function realVisitadores(visitas: VisitaDetalle[], gestiones: GestionMes[
       visitas: xs.length,
       creditos_visitados: new Set(xs.map((x) => x.credito)).size,
       visitas_dia_activo: dias ? xs.length / dias : 0,
-      kilometros: xs.reduce((a, x) => a + (x.kilometros ?? 0), 0),
+      kilometros: kmPorV.get(u) ?? 0,
       prp: prp.get(normAgente(u)) ?? 0,
     })
   }
@@ -153,4 +156,68 @@ export function completarGestiones(metas: MetaFila[], periodo: string, pesos: nu
     }
   }
   return salida
+}
+
+export function semaforoCon(c: number | null, verde: number, amarillo: number): 'Verde' | 'Amarillo' | 'Rojo' | null {
+  if (c === null) return null
+  return c >= verde ? 'Verde' : c >= amarillo ? 'Amarillo' : 'Rojo'
+}
+
+// Evaluación por usuario e indicador (services/targets_engine.evaluar_usuarios): real acumulado, real del día, metas
+// del mes y a la fecha, cumplimiento, avance del mes y semáforo.
+export interface EvalFila {
+  usuario_id: number
+  nombre: string
+  indicador: string
+  real: number
+  real_dia: number
+  meta_mes: number | null
+  meta_a_fecha: number | null
+  cumplimiento: number | null
+  avance: number | null
+  diferencia: number | null
+  semaforo: 'Verde' | 'Amarillo' | 'Rojo' | null
+  acumulable: boolean
+}
+
+export interface UsuarioBase {
+  id: number
+  nombre: string
+}
+
+export function evaluar(
+  tipo: TipoMeta, usuarios: UsuarioBase[], metas: (MetaFila & { derivada?: boolean })[],
+  real: Map<string, Real>, realDia: Map<string, Real>, usuarioNorm: Map<number, string>,
+  factor: number, verde: number, amarillo: number,
+): EvalFila[] {
+  const salida: EvalFila[] = []
+  for (const ind of INDICADORES[tipo]) {
+    for (const u of usuarios) {
+      const clave = normalizarUsuario(tipo, usuarioNorm.get(u.id) ?? '')
+      const r = real.get(clave)?.[ind.clave] ?? 0
+      const rd = realDia.get(clave)?.[ind.clave] ?? 0
+      const meta = metas.find((m) => m.usuario_id === u.id && m.indicador === ind.clave)?.valor_meta ?? null
+      const metaAFecha = meta === null ? null : ind.acumulable ? meta * factor : meta
+      const c = cumplimiento(r, metaAFecha)
+      const sem = semaforoCon(c, verde, amarillo)
+      salida.push({
+        usuario_id: u.id, nombre: u.nombre, indicador: ind.clave, real: r, real_dia: rd, meta_mes: meta,
+        meta_a_fecha: metaAFecha, cumplimiento: c, avance: meta ? r / meta : null,
+        diferencia: metaAFecha === null ? null : r - metaAFecha, semaforo: sem, acumulable: ind.acumulable,
+      })
+    }
+  }
+  return salida
+}
+
+export function ranking(ev: EvalFila[]): { usuario_id: number; nombre: string; promedio: number; conMeta: number; enVerde: number }[] {
+  const por = new Map<number, EvalFila[]>()
+  for (const f of ev) if (f.meta_a_fecha !== null) por.set(f.usuario_id, [...(por.get(f.usuario_id) ?? []), f])
+  return [...por.entries()].map(([id, xs]) => ({
+    usuario_id: id,
+    nombre: xs[0].nombre,
+    promedio: xs.reduce((a, x) => a + Math.min(x.cumplimiento ?? 0, 2), 0) / xs.length,
+    conMeta: xs.length,
+    enVerde: xs.filter((x) => x.semaforo === 'Verde').length,
+  })).sort((a, b) => b.promedio - a.promedio)
 }
