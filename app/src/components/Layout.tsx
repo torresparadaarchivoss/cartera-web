@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useDatos } from '../lib/contexto'
+import * as datos from '../lib/datos'
 import { fecha } from '../lib/formato'
 import { MultiSelect, SelectBox } from './Selectores'
 
@@ -27,6 +28,10 @@ export default function Layout() {
   const { fechas, fecha: fechaSel, setFecha, opciones, filtros, setFiltros, cargando, error } = useDatos()
   const ubicacion = useLocation()
   const [oculto, setOculto] = useState(() => localStorage.getItem('menuOculto') === '1')
+  const [ultima, setUltima] = useState<string | null>(null)
+  useEffect(() => {
+    datos.ultimaCarga().then(setUltima).catch(() => setUltima(null))
+  }, [])
   const alternar = () => {
     setOculto((v) => {
       localStorage.setItem('menuOculto', v ? '0' : '1')
@@ -42,6 +47,11 @@ export default function Layout() {
         </button>
         <img src={`${import.meta.env.BASE_URL}brand/logo_oscuro.png`} alt="Instacredit" />
         <span className="usuario">{perfil?.nombre ?? ''}</span>
+        {ultima && (
+          <span className="usuario" title="Última carga que terminó bien">
+            Última actualización: {new Date(ultima).toLocaleString('es-SV', { dateStyle: 'short', timeStyle: 'short' })}
+          </span>
+        )}
         <span className="sep" />
         <button className="boton" onClick={() => void cerrarSesion()}>Salir</button>
       </header>

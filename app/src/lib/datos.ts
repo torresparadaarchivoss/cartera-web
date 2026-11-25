@@ -589,3 +589,10 @@ export async function coreoConfig(periodo: string): Promise<Record<string, numbe
   if (res.error) throw new Error(res.error.message)
   return Object.fromEntries(((res.data ?? []) as { clave: string; valor: number }[]).map((x) => [x.clave, Number(x.valor)]))
 }
+
+// Última carga que terminó bien (la programada escribe en carga_estado; si falla, queda la del último run bueno).
+export async function ultimaCarga(): Promise<string | null> {
+  const res = await supabase.from('carga_estado').select('ejecutado_en').eq('clave', 'ultima_carga_ok').maybeSingle()
+  if (res.error) throw new Error(res.error.message)
+  return (res.data as { ejecutado_en: string } | null)?.ejecutado_en ?? null
+}
