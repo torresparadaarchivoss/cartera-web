@@ -70,6 +70,17 @@ export async function stock(fecha: string, f: Filtros): Promise<Stock> {
   return lanzar(await supabase.rpc('cartera_stock', { p_fecha: fecha, ...args(f) }))
 }
 
+export interface PuntoMora90 {
+  f_reporte: string
+  saldo: number
+  saldo_mora_90: number
+  indice_mora_90: number | null
+}
+
+export async function mora90Serie(desde: string, fecha: string, f: Filtros): Promise<PuntoMora90[]> {
+  return lanzar(await supabase.rpc('cartera_mora90_serie', { p_fecha: fecha, p_desde: desde, ...args(f) }))
+}
+
 export async function porDimension(fecha: string, dim: Dimension, f: Filtros): Promise<FilaGrupo[]> {
   return lanzar(await supabase.rpc('cartera_por_dimension', { p_fecha: fecha, p_dimension: dim, ...args(f) }))
 }

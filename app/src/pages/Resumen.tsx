@@ -21,6 +21,7 @@ export default function Resumen() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [datosMes, setDatosMes] = useState<Datos | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mora90, setMora90] = useState<datos.PuntoMora90[] | null>(null)
 
   useEffect(() => {
     if (!corte || !fechaBase || !filtros) return
@@ -37,6 +38,17 @@ export default function Resumen() {
         if (vigente) setDatosMes({ hoy, ini, flujo, b0, coh })
       })
       .catch((e: Error) => vigente && setError(e.message))
+    return () => {
+      vigente = false
+    }
+  }, [corte, fechaBase, filtros])
+
+  useEffect(() => {
+    if (!corte || !fechaBase || !filtros) return
+    let vigente = true
+    datos.mora90Serie(fechaBase, corte, filtros)
+      .then((s) => vigente && setMora90(s))
+      .catch(() => vigente && setMora90(null))
     return () => {
       vigente = false
     }
@@ -96,9 +108,25 @@ export default function Resumen() {
         <Kpi etiqueta="Bucket 0 que desmejoran sin gestión" valor={entero(b0.sin_gestion)}
           detalle={`de ${entero(b0.desmejoran)} que pasaron a mora`} tono="malo" />
       </FilaKpi>
-      <div style={{ maxWidth: 520 }}>
-        <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
-          layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div style={{ maxWidth: 520, flex: '1 1 420px' }}>
+          <Grafico titulo="Embudo de gestión del mes" data={embudo} alto={320}
+            layout={{ margin: { l: 110, r: 16, t: 20, b: 20 } }} />
+        </div>
+        <div style={{ flex: '1 1 420px', minWidth: 320 }}>
+          {mora90 && (
+            <Grafico titulo="Evolución del índice de mora 90+ en el mes"
+              data={[{
+                type: 'scatter', mode: 'lines+markers', name: 'Mora 90+',
+                x: mora90.map((p) => p.f_reporte),
+                y: mora90.map((p) => p.indice_mora_90),
+                line: { color: '#06255B', width: 2.2 }, marker: { size: 4, color: '#4B9D45' },
+              } as Data]}
+              layout={{ yaxis: { tickformat: '.1%', rangemode: 'tozero' }, margin: { l: 60, r: 16, t: 20, b: 40 } }}
+              alto={320}
+            />
+          )}
+        </div>
       </div>
 
       <Promesas corte={corte} filtros={filtros} />
