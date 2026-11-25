@@ -309,3 +309,9 @@ table.tabla-metas td, table.tabla-metas th { padding: 5px 8px; }
   .login-panel { padding: 24px; }
   .login-prestamito { height: 200px; }
 }
+
+/* Encabezados fijos en todas las tablas: dentro de una ventana se quedan arriba de su propio recuadro; en la página,
+   se quedan debajo de la barra superior mientras se desplaza. */
+table.dc-tabla thead th { position: sticky; top: 56px; background: #fff; z-index: 2; box-shadow: 0 1px 0 var(--linea); }
+.ventana table.dc-tabla thead th { top: 0; }
+.barra-sup { position: sticky; top: 0; z-index: 10; }

@@ -35,6 +35,7 @@ export default function ComisionesCampo() {
   const [pagos, setPagos] = useState<PagoC[] | null>(null)
   const [cartera, setCartera] = useState<CarteraC[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [verComision, setVerComision] = useState(false)
 
   useEffect(() => {
     Promise.all([adm.usuarios(), adm.asignaciones(), datos.visitasMes(), datos.pagosMes()])
@@ -183,15 +184,18 @@ export default function ComisionesCampo() {
 
       {resumenes.map(({ eq, filas }) => (
         <div className="dc-tarjeta" key={eq}>
-          <Titulo texto={`Resumen · equipo ${eq}`} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <Titulo texto={`Resumen · equipo ${eq}`} />
+            <button className="boton" onClick={() => setVerComision((v) => !v)}>{verComision ? 'Ocultar comisiones' : 'Mostrar comisiones'}</button>
+          </div>
           {filas.length === 0 ? <Nota tipo="alerta" texto="Sin motorizados en este equipo." /> : (
             <div style={{ overflow: 'auto' }}>
               <table className="dc-tabla">
                 <thead>
                   <tr>
                     <th>Supervisor</th><th>Motorizado</th><th>Cuentas</th><th>Cuentas válidas</th><th>Cumple cuota</th>
-                    <th>Saldo capital</th><th>Recaudo válido</th><th>Eficiencia</th><th>Comisión por mora</th>
-                    <th>Comisión válida</th><th>Meta cuenta pago</th><th>Alcance</th><th>Comisión cuentas pago</th><th>Comisión total</th>
+                    <th>Saldo capital</th><th>Recaudo válido</th><th>Eficiencia</th>{verComision && <th>Comisión por mora</th>}
+                    {verComision && <th>Comisión válida</th>}<th>Meta cuenta pago</th><th>Alcance</th>{verComision && <th>Comisión cuentas pago</th>}{verComision && <th>Comisión total</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -200,9 +204,9 @@ export default function ComisionesCampo() {
                       <td>{f.supervisor || '—'}</td><td>{f.motorizado}</td><td>{entero(f.cuentas)}</td><td>{entero(f.cuentasValidas)}</td>
                       <td style={escalas.get(f.usuario)?.cumple ? { background: escalas.get(f.usuario)!.cumple!, color: '#000' } : {}}>{pct(f.cumpleCuota, 2)}</td>
                       <td>{dinero(f.saldo, 2)}</td><td>{dinero(f.recaudoValido, 2)}</td><td style={escalas.get(f.usuario)?.eficiencia ? { background: escalas.get(f.usuario)!.eficiencia!, color: '#000' } : {}}>{pct(f.eficiencia, 2)}</td>
-                      <td>{dinero(f.comisionMora, 2)}</td><td>{dinero(f.comisionValida, 2)}</td><td>{pct(f.metaCuentaPago, 2)}</td>
-                      <td style={escalas.get(f.usuario)?.alcance ? { background: escalas.get(f.usuario)!.alcance!, color: '#000' } : {}}>{pct(f.alcance)}</td><td>{dinero(f.comisionCuentasPago, 2)}</td>
-                      <td><strong>{dinero(f.comisionTotal, 2)}</strong></td>
+                      {verComision && <td>{dinero(f.comisionMora, 2)}</td>}{verComision && <td>{dinero(f.comisionValida, 2)}</td>}<td>{pct(f.metaCuentaPago, 2)}</td>
+                      <td style={escalas.get(f.usuario)?.alcance ? { background: escalas.get(f.usuario)!.alcance!, color: '#000' } : {}}>{pct(f.alcance)}</td>{verComision && <td>{dinero(f.comisionCuentasPago, 2)}</td>}
+                      {verComision && <td><strong>{dinero(f.comisionTotal, 2)}</strong></td>}
                     </tr>
                   ))}
                 </tbody>
