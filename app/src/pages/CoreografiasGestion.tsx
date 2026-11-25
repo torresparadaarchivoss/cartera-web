@@ -6,6 +6,7 @@ import * as adm from '../lib/administracion'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Plot, Tabla, Titulo } from '../components/Bloques'
 import { MultiSelect, SelectBox } from '../components/Selectores'
+import { descargarExcel } from '../lib/exportar'
 import * as co from '../lib/coreografias'
 import type { Data, Layout } from 'plotly.js'
 
@@ -99,6 +100,21 @@ export default function CoreografiasGestion() {
   const clases = [...new Set(fpdFiltrado.map((x) => x.clase ?? ''))].sort()
   const fpdTotal = co.fpdResumen(fpdFiltrado, presupuesto)
 
+  const descargarTodo = () => {
+    const hojaFuera = fuera.map((x) => ({
+      Crédito: x.credito, Segmento: x.segmento ?? '', Clase: x.clase ?? '', Gestor: nombreGestor(x.gestor ?? ''),
+      Supervisor: x.supervisor ?? '', Entrada: x.fecha_entrada, Estado: x.estado ?? '', Coreografía: x.coreografia ?? '',
+      'Paso fallido': x.paso_fallido ?? 'Días sin gestión', 'Días desde el fallo': x.dias_desde_fallo ?? '',
+      'Días sin gestión (máx.)': x.dias_sin_gestion_max ?? '', 'Saldo de entrada': x.saldo_entrada ?? '',
+    }))
+    const hojaFpd = fpdFiltrado.map((x) => ({
+      Crédito: x.credito, Clase: x.clase ?? '', Supervisor: x.supervisor ?? '', Gestor: nombreGestor(x.gestor ?? ''),
+      'Fecha de renovación': x.fecha_renov ?? '', 'Primera cuota': x.primera_cuota ?? '', 'Día medido': x.fecha_evaluacion ?? '',
+      'Venció el día medido': x.vence_corte ? 'Sí' : 'No', FPD: x.fpd ? 'Sí' : 'No', 'Monto pagaré': x.saldopagare ?? '',
+    }))
+    descargarExcel(`coreografias_${periodo}.xlsx`, [{ nombre: 'Fuera de coreografía', filas: hojaFuera }, { nombre: 'Cosecha FPD', filas: hojaFpd }])
+  }
+
   return (
     <>
       <h1 style={{ marginBottom: 6 }}>Coreografías de gestión</h1>
@@ -157,9 +173,12 @@ export default function CoreografiasGestion() {
       )}
 
       <div className="dc-tarjeta">
-        <Titulo texto={`Episodios fuera de coreografía (${entero(fuera.length)})`} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Titulo texto={`Episodios fuera de coreografía (${entero(fuera.length)})`} />
+          <button className="boton" onClick={descargarTodo}>Descargar Excel</button>
+        </div>
         <p style={{ fontSize: 12 }}>No cumplen algún paso, o siguen abiertos con la alerta de días sin gestión.</p>
-        <div style={{ maxHeight: 420, overflow: 'auto' }}>
+        <div className="ventana">
           <table className="dc-tabla">
             <thead>
               <tr><th>Crédito</th><th>Segmento</th><th>Clase</th><th>Gestor</th><th>Supervisor</th><th>Entrada</th>

@@ -7,6 +7,7 @@ import { entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Plot, Tabla, Titulo } from '../components/Bloques'
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
 import type { Data, Layout } from 'plotly.js'
+import { descargarExcel } from '../lib/exportar'
 
 // Visitas de campo (modules/visitas.py). Adaptado a lo que hay en la base: la visita trae su crédito, visitador,
 // acción, resultado, causa de no pago, parentesco, fotos y km. El filtro de bucket de mora, el saldo visitado, el
@@ -184,6 +185,13 @@ export default function VisitasCampo() {
 
   const detalle = [...v].sort((a, b) => b.fecha_visita.localeCompare(a.fecha_visita))
 
+  const descargarTodo = () => {
+    descargarExcel(`visitas_${corte}.xlsx`, [{ nombre: 'Visitas', filas: detalle.map((x) => ({
+      Fecha: x.fecha_visita.slice(0, 10), Crédito: x.credito, Visitador: x.visitador, Acción: x.accion, Resultado: x.resultado,
+      'Causa de no pago': x.causa_no_pago, Parentesco: x.parentesco, Fotos: x.num_fotos, Km: x.kilometros ?? '',
+    })) }])
+  }
+
   return (
     <>
       <h1 style={{ marginBottom: 6 }}>Visitas de campo</h1>
@@ -248,8 +256,11 @@ export default function VisitasCampo() {
       )}
 
       <div className="dc-tarjeta">
-        <Titulo texto={`Detalle de visitas (${entero(detalle.length)})`} />
-        <div style={{ maxHeight: 420, overflow: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Titulo texto={`Detalle de visitas (${entero(detalle.length)})`} />
+          <button className="boton" onClick={descargarTodo}>Descargar Excel</button>
+        </div>
+        <div className="ventana">
           <table className="dc-tabla">
             <thead>
               <tr><th>Fecha</th><th>Crédito</th><th>Visitador</th><th>Acción</th><th>Resultado</th><th>Causa de no pago</th><th>Parentesco</th><th>Fotos</th><th>Km</th></tr>

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useDatos } from '../lib/contexto'
@@ -27,16 +28,26 @@ export default function Layout() {
   const { perfil, cerrarSesion } = useAuth()
   const { fechas, fecha: fechaSel, setFecha, opciones, filtros, setFiltros, cargando, error } = useDatos()
   const ubicacion = useLocation()
+  const [oculto, setOculto] = useState(() => localStorage.getItem('menuOculto') === '1')
+  const alternar = () => {
+    setOculto((v) => {
+      localStorage.setItem('menuOculto', v ? '0' : '1')
+      return !v
+    })
+  }
 
   return (
     <>
       <header className="barra-sup">
+        <button className="boton-menu" onClick={alternar} title={oculto ? 'Mostrar el menú' : 'Ocultar el menú'}>
+          {oculto ? '☰ Mostrar menú' : '☰ Ocultar menú'}
+        </button>
         <img src={`${import.meta.env.BASE_URL}brand/logo_oscuro.png`} alt="Instacredit" />
         <span className="usuario">{perfil?.nombre ?? ''}</span>
         <span className="sep" />
         <button className="boton" onClick={() => void cerrarSesion()}>Salir</button>
       </header>
-      <div className="con-lateral">
+      <div className={`con-lateral${oculto ? ' oculto' : ''}`}>
         <aside className="lateral">
           <div className="marca">Cartera y cobranza · El Salvador</div>
           <nav className="menu">

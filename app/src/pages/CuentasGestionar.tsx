@@ -8,6 +8,7 @@ import { dinero, entero, fecha } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
 import { MultiSelect, Radios, SelectBox } from '../components/Selectores'
 import { useAuth } from '../lib/auth'
+import { descargarExcel, type Hoja } from '../lib/exportar'
 import type { Data } from 'plotly.js'
 
 // Cuentas a gestionar (modules/cuentas.py). El mapa de visitas y los datos del cliente solo se cargan para
@@ -195,15 +196,25 @@ export default function CuentasGestionar() {
     { e: 'Visitas del mes', f: (c) => entero(c.visitas_mes) },
   ]
 
-  const descargarCsv = () => {
-    const enc = cols.map((c) => c.e)
-    const filas = lista.map((c) => cols.map((col) => `"${col.f(c).replace(/"/g, '""')}"`).join(','))
-    const blob = new Blob([[enc.join(','), ...filas].join('\n')], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `cuentas_${corte}.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
+  const descargarTodo = () => {
+    const hojaCuentas = lista.map((c) => Object.fromEntries(cols.map((col) => [col.e, col.f(c)])))
+    const hojaGest = gest.map((g) => ({
+      Fecha: g.fecha_actividad.slice(0, 10), Crédito: g.credito, Agente: g.usuario, Acción: g.accion, Resultado: g.resultado,
+      Contacto: g.contacto ? 'Sí' : 'No', RPC: g.rpc ? 'Sí' : 'No', Promesa: g.promesa ? 'Sí' : 'No',
+      'Monto prometido': g.monto_promesa, 'Fecha de promesa': g.fecha_promesa ?? '',
+    }))
+    const hojaVis = vis.map((v) => ({
+      Fecha: v.fecha_visita.slice(0, 10), Crédito: v.credito, Visitador: v.visitador, Acción: v.accion, Resultado: v.resultado,
+      'Causa de no pago': v.causa_no_pago, Parentesco: v.parentesco, Fotos: v.num_fotos, Km: v.kilometros ?? '',
+    }))
+    const hojas: Hoja[] = [{ nombre: 'Cuentas', filas: hojaCuentas }, { nombre: 'Gestiones', filas: hojaGest }, { nombre: 'Visitas', filas: hojaVis }]
+    if (esAdmin) {
+      hojas.push({ nombre: 'Datos del cliente', filas: clientes.map((c) => ({
+        Crédito: c.credito, Nombre: c.nombre_deudor ?? '', Edad: c.edad ?? '', Género: c.genero ?? '', Salario: c.salario ?? '',
+        Profesión: c.profesion ?? '', Domicilio: c.ubicacion ?? '', 'Dirección de trabajo': c.dire_trabajo ?? '', Ciudad: c.ciudad ?? '',
+      })) })
+    }
+    descargarExcel(`cuentas_a_gestionar_${corte}.xlsx`, hojas)
   }
 
   return (
@@ -255,9 +266,9 @@ export default function CuentasGestionar() {
       <div className="dc-tarjeta">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Titulo texto={`Cuentas (${entero(lista.length)})`} />
-          <button className="boton" onClick={descargarCsv} disabled={!cuentasTabla}>Descargar CSV</button>
+          <button className="boton" onClick={descargarTodo} disabled={!cuentasTabla}>Descargar Excel</button>
         </div>
-        <div style={{ maxHeight: 460, overflow: 'auto' }}>
+        <div className="ventana">
           <table className="dc-tabla">
             <thead>
               <tr>{cols.map((c) => <th key={c.e}>{c.e}</th>)}</tr>
@@ -273,7 +284,7 @@ export default function CuentasGestionar() {
 
       <div className="dc-tarjeta">
         <Titulo texto={`Gestiones de estas cuentas (${entero(gest.length)})`} />
-        <table className="dc-tabla">
+<div className="ventana">        <table className="dc-tabla">
           <thead><tr><th>Fecha</th><th>Crédito</th><th>Agente</th><th>Acción</th><th>Resultado</th><th>Contacto</th><th>RPC</th><th>Promesa</th><th>Monto prometido</th><th>Fecha de promesa</th></tr></thead>
           <tbody>
             {gest.map((g, i) => (
@@ -284,7 +295,7 @@ export default function CuentasGestionar() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <p style={{ fontSize: 12 }}>Más reciente primero. La relación entre una promesa y un pago no se asume.</p>
       </div>
 
@@ -292,7 +303,7 @@ export default function CuentasGestionar() {
         <>
           <div className="dc-tarjeta">
             <Titulo texto={`Datos del cliente (${entero(clientes.length)}) · solo administradores`} />
-            <div style={{ maxHeight: 360, overflow: 'auto' }}>
+            <div className="ventana">
               <table className="dc-tabla">
                 <thead>
                   <tr><th>Crédito</th><th>Nombre</th><th>Edad</th><th>Género</th><th>Salario</th><th>Profesión</th><th>Domicilio</th><th>Dirección de trabajo</th><th>Ciudad</th></tr>
@@ -324,7 +335,7 @@ export default function CuentasGestionar() {
 
       <div className="dc-tarjeta">
         <Titulo texto={`Visitas de estas cuentas (${entero(vis.length)})`} />
-        <table className="dc-tabla">
+<div className="ventana">        <table className="dc-tabla">
           <thead><tr><th>Fecha</th><th>Crédito</th><th>Visitador</th><th>Acción</th><th>Resultado</th><th>Causa de no pago</th><th>Parentesco</th><th>Fotos</th><th>Km</th></tr></thead>
           <tbody>
             {vis.map((v, i) => (
@@ -335,7 +346,7 @@ export default function CuentasGestionar() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </>
   )

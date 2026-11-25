@@ -7,6 +7,7 @@ import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Titulo } from '../components/Bloques'
 import { estiloCumpl } from '../lib/prorrateo'
 import * as com from '../lib/comisiones'
+import { descargarExcel, type Hoja } from '../lib/exportar'
 import type { CarteraC, MiembroC, PagoC, VisitaC } from '../lib/comisiones'
 
 // Comisiones de campo (modules/comisiones.py). Usa todo el mes y no aplica los filtros globales. Pendiente: el código de
@@ -93,6 +94,26 @@ export default function ComisionesCampo() {
   const totalComision = resumenes.reduce((a, r) => a + r.filas.reduce((x, f) => x + f.comisionTotal, 0), 0)
   const totalRecaudo = cuentasCalc.reduce((a, c) => a + c.recaudo_valido, 0)
 
+  const descargarTodo = () => {
+    const hojas: Hoja[] = resumenes.map(({ eq, filas }) => ({
+      nombre: `Resumen ${eq}`,
+      filas: filas.map((f) => ({
+        Supervisor: f.supervisor, Motorizado: f.motorizado, Usuario: f.usuario, Cuentas: f.cuentas,
+        'Cuentas válidas': f.cuentasValidas, 'Cumple cuota': f.cumpleCuota, 'Saldo capital': f.saldo,
+        'Recaudo válido': f.recaudoValido, Eficiencia: f.eficiencia, 'Comisión por mora': f.comisionMora,
+        'Comisión válida recaudo': f.comisionValida, 'Meta cuenta pago': f.metaCuentaPago, 'Alcance cuentas pago': f.alcance,
+        'Comisión cuentas pago': f.comisionCuentasPago, 'Comisión total': f.comisionTotal,
+      })),
+    }))
+    hojas.push({ nombre: 'Cuentas', filas: cuentasCalc.map((c) => ({
+      Equipo: c.equipo, Motorizado: nombres.get(c.usuario) ?? c.usuario, Usuario: c.usuario, Crédito: c.credito,
+      'Fecha de asignación': c.fecha_asignacion, 'Visita válida': c.visita_valida ? 'Sí' : 'No', 'Due inicio de mes': c.categoria,
+      Saldo: c.saldo, Cuota: c.cuota, 'Recaudo meta': c.recaudo_meta, Recaudo: c.recaudo, 'Recaudo DMT': c.recaudo_dmt,
+      'Recaudo válido': c.recaudo_valido, Tasa: c.tasa, Comisión: c.comision, 'Paga cuota': c.paga_cuota ? 'Sí' : 'No',
+    })) })
+    descargarExcel(`comisiones_${corte}.xlsx`, hojas)
+  }
+
   return (
     <>
       <h1 style={{ marginBottom: 6 }}>Comisiones de campo</h1>
@@ -174,8 +195,11 @@ export default function ComisionesCampo() {
       })}
 
       <div className="dc-tarjeta">
-        <Titulo texto={`Cuentas asignadas (${entero(cuentasCalc.length)})`} />
-        <div style={{ maxHeight: 420, overflow: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Titulo texto={`Cuentas asignadas (${entero(cuentasCalc.length)})`} />
+          <button className="boton" onClick={descargarTodo}>Descargar Excel</button>
+        </div>
+        <div className="ventana">
           <table className="dc-tabla">
             <thead>
               <tr><th>Equipo</th><th>Motorizado</th><th>Crédito</th><th>Asignada</th><th>Visita válida</th><th>Due</th>
