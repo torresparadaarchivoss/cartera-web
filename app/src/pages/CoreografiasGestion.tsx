@@ -173,6 +173,59 @@ export default function CoreografiasGestion() {
         </div>
       )}
 
+      {/* Secciones del spec dentro de esta misma página: embudo PYME y Prórroga, y distribución de promesas y brechas. */}
+      {['PYME', 'Prórroga'].map((seg) => {
+        const xs = filtrados.filter((x) => x.segmento === seg)
+        if (xs.length === 0) return null
+        const cumple = (k: keyof CoreoEpisodio) => xs.filter((x) => x[k] === co.CUMPLE).length
+        const etapas = ['Entra en mora', 'Gestión CC día 1', 'Acuerdo día 1', 'Visita a tiempo', 'Call Center + campo', 'Promesa ≤ 5 días', 'Recuperado']
+        const valores = [xs.length, cumple('paso_gestion_d1'), cumple('paso_acuerdo_d1'), cumple('paso_visita'),
+          cumple('paso_combinado'), cumple('paso_promesa_pago'), xs.filter((x) => x.estado === co.RECUPERADO).length]
+        return (
+          <div className="dc-tarjeta" key={seg}>
+            <Titulo texto={`Embudo de la coreografía · ${seg}`} />
+            <Plot data={[{ type: 'funnel', y: etapas, x: valores, textinfo: 'value+percent initial' } as unknown as Data]}
+              layout={{ height: 320, margin: { l: 150, r: 16, t: 16, b: 16 } } as Partial<Layout>}
+              config={{ displayModeBar: false, responsive: true }} style={{ width: '100%' }} useResizeHandler />
+          </div>
+        )
+      })}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+        <div className="dc-tarjeta">
+          <Titulo texto="Días de la promesa a pago" />
+          <table className="dc-tabla">
+            <thead><tr><th>Días</th><th>Episodios</th></tr></thead>
+            <tbody>
+              {[
+                ['0 a 2', (x: CoreoEpisodio) => x.dias_promesa_pago !== null && x.dias_promesa_pago <= 2],
+                ['3 a 5', (x: CoreoEpisodio) => x.dias_promesa_pago !== null && x.dias_promesa_pago > 2 && x.dias_promesa_pago <= 5],
+                ['Más de 5', (x: CoreoEpisodio) => x.dias_promesa_pago !== null && x.dias_promesa_pago > 5],
+                ['Sin promesa', (x: CoreoEpisodio) => x.dias_promesa_pago === null],
+              ].map(([etq, f]) => (
+                <tr key={etq as string}><td>{etq as string}</td><td>{entero(filtrados.filter(f as (x: CoreoEpisodio) => boolean).length)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="dc-tarjeta">
+          <Titulo texto="Brechas sin gestión (máximo dentro del episodio)" />
+          <table className="dc-tabla">
+            <thead><tr><th>Días</th><th>Episodios</th></tr></thead>
+            <tbody>
+              {[
+                ['0 a 3', (x: CoreoEpisodio) => x.dias_sin_gestion_max !== null && x.dias_sin_gestion_max <= 3],
+                ['4 a 7', (x: CoreoEpisodio) => x.dias_sin_gestion_max !== null && x.dias_sin_gestion_max > 3 && x.dias_sin_gestion_max <= 7],
+                ['8 a 15', (x: CoreoEpisodio) => x.dias_sin_gestion_max !== null && x.dias_sin_gestion_max > 7 && x.dias_sin_gestion_max <= 15],
+                ['Más de 15', (x: CoreoEpisodio) => x.dias_sin_gestion_max !== null && x.dias_sin_gestion_max > 15],
+              ].map(([etq, f]) => (
+                <tr key={etq as string}><td>{etq as string}</td><td>{entero(filtrados.filter(f as (x: CoreoEpisodio) => boolean).length)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="dc-tarjeta">
         <Titulo texto="Acción de hoy" />
         <table className="dc-tabla">
