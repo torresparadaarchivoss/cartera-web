@@ -18,6 +18,7 @@ import EvolucionMora from './pages/EvolucionMora'
 import Administracion from './pages/Administracion'
 import MetasCumplimiento from './pages/MetasCumplimiento'
 import ComisionesCampo from './pages/ComisionesCampo'
+import CoreografiasGestion from './pages/CoreografiasGestion'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="/evolucion-mora" element={<EvolucionMora />} />
             <Route path="/metas" element={<MetasCumplimiento />} />
             <Route path="/comisiones" element={<ComisionesCampo />} />
+            <Route path="/coreografias" element={<CoreografiasGestion />} />
             <Route
               path="/parametros"
               element={
