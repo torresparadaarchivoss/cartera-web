@@ -21,7 +21,7 @@ interface Props {
 }
 
 export default function Promesas({ corte, filtros }: Props) {
-  const [medida, setMedida] = useState<Medida>('Monto promesado')
+  const [medida, setMedida] = useState<Medida>('Saldo del crédito')
   const [resumen, setResumen] = useState<PromesasResumen | null>(null)
   const [tabla, setTabla] = useState<FilaPromesaTabla[] | null>(null)
   const [serie, setSerie] = useState<PuntoPromesaDia[] | null>(null)

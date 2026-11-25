@@ -13,7 +13,7 @@ const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { ruta: '/rodamiento', etiqueta: 'Rodamiento' },
   { ruta: '/gestion-cobros', etiqueta: 'Gestión de cobros' },
   { ruta: '/coreografias', etiqueta: 'Coreografías de gestión' },
-  { ruta: '/recuperacion', etiqueta: 'Recuperación' },
+  { ruta: '/recuperacion', etiqueta: 'Recaudo' },
   { ruta: '/visitas-campo', etiqueta: 'Visitas de campo' },
   { ruta: '/comisiones', etiqueta: 'Comisiones de campo' },
   { ruta: '/cuentas-gestionar', etiqueta: 'Cuentas a gestionar' },

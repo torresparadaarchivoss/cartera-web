@@ -91,7 +91,7 @@ function construirFilas(rows: FilaRecuperacion[], meta: MetasRecuperacion, facto
 
 export default function Recuperacion() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
-  const [bucket, setBucket] = useState<BucketRecuperacion>('bucket_pago')
+  const [bucket, setBucket] = useState<BucketRecuperacion>('bucket_inicial')
   const [rows, setRows] = useState<FilaRecuperacion[] | null>(null)
   const [dias, setDias] = useState<PagoDia[]>([])
   const [meta, setMeta] = useState<MetasRecuperacion | null>(null)
@@ -165,7 +165,7 @@ export default function Recuperacion() {
 
   return (
     <>
-      <h1 style={{ marginBottom: 6 }}>Recuperación</h1>
+      <h1 style={{ marginBottom: 6 }}>Recaudo</h1>
       <p className="dc-desc">
         Pagos de clientes registrados en CHIRICO del primer día del mes a la fecha de seguimiento, por bucket de mora y
         tipo de cartera del crédito. No se asocia a gestiones.
