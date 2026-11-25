@@ -10,7 +10,7 @@ const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { ruta: '/cartera', etiqueta: 'Cartera' },
   { ruta: '/roll-rates', etiqueta: 'Roll rates' },
   { ruta: '/rodamiento-real', etiqueta: 'Rodamiento real' },
-  { etiqueta: 'Gestión de cobros' },
+  { ruta: '/gestion-cobros', etiqueta: 'Gestión de cobros' },
   { etiqueta: 'Coreografías de gestión' },
   { ruta: '/recuperacion', etiqueta: 'Recuperación' },
   { ruta: '/visitas-campo', etiqueta: 'Visitas de campo' },

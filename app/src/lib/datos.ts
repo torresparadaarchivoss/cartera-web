@@ -432,3 +432,18 @@ export function ubicacionesMes(): Promise<UbicacionDetalle[]> {
   return todasLasFilas<UbicacionDetalle>('visita_ubicacion',
     'credito, fecha_visita, visitador, resultado, latitud, longitud', 'fecha_visita')
 }
+
+export interface GestionMes {
+  credito: string
+  fecha_actividad: string
+  usuario: string
+  contacto: number
+  rpc: number
+  promesa: number
+  monto_promesa: number
+}
+
+export function gestionesMes(): Promise<GestionMes[]> {
+  return todasLasFilas<GestionMes>('gestion',
+    'credito, fecha_actividad, usuario, contacto, rpc, promesa, monto_promesa', 'fecha_actividad')
+}
