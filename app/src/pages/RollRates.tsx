@@ -8,9 +8,11 @@ import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS } from '../components/Bloque
 import { TablaEvolucion } from '../components/TablaEvolucion'
 import { Radios } from '../components/Selectores'
 import { evolucion } from '../lib/evolucion'
+import * as adm from '../lib/administracion'
+import type { MetaBucket } from '../lib/administracion'
+import { semaforoCon } from '../lib/metas'
+import { CELDA_SEM } from '../lib/prorrateo'
 
-// Roll rates (modules/roll_rates.py): cohorte congelada del primer día, matriz de transición y resumen por bucket.
-// Pendiente: evolución diaria de la cohorte y cumplimiento de metas por bucket (metas_bucket de mora).
 
 const MEDIDAS = ['% del saldo base', '% de cuentas', 'Saldo base', 'Cuentas', 'Saldo observado'] as const
 const FORMATOS = ['Evolución', 'Matriz'] as const
@@ -21,6 +23,21 @@ const DESTINOS = [...ORIGENES, 'Sin registro'] as const
 
 // Colores de celda del Streamlit (components/theme.CELDA_MOVIMIENTO).
 const COLOR = { Mejora: '#63BE7B', Mantiene: '#A3A8BD', Desmejora: '#F8696B', 'Sin registro': '#FFD966' }
+const UMBRAL_VERDE = 1
+const UMBRAL_AMARILLO = 0.8
+
+// Tres celdas de una meta: real, meta y cumplimiento con el color del semáforo.
+type CeldaMeta = { real: number | null; meta: number | null; cumple: number | null; sem: string | null }
+function CeldasMeta({ c }: { c: CeldaMeta }) {
+  const color = c.sem && c.sem in CELDA_SEM ? CELDA_SEM[c.sem as keyof typeof CELDA_SEM] : undefined
+  return (
+    <>
+      <td>{c.real === null ? '—' : pct(c.real)}</td>
+      <td>{c.meta === null ? '—' : pct(c.meta)}</td>
+      <td style={color ? { background: color } : {}}>{c.cumple === null ? '—' : pct(c.cumple)}</td>
+    </>
+  )
+}
 
 type Mov = 'Mejora' | 'Mantiene' | 'Desmejora' | 'Sin registro'
 
@@ -67,6 +84,12 @@ export default function RollRates() {
   const [formato, setFormato] = useState<Formato>('Evolución')
   const [celdas, setCeldas] = useState<CeldaRoll[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [metas, setMetas] = useState<MetaBucket[]>([])
+
+  useEffect(() => {
+    if (!corte) return
+    adm.metasBucket(corte.slice(0, 7)).then(setMetas).catch(() => setMetas([]))
+  }, [corte])
 
   useEffect(() => {
     if (!corte || !filtros) return
@@ -89,6 +112,34 @@ export default function RollRates() {
     const sinRefTot = sumar(sinRef)
     return { ref, total, porOrigen, sinRef: sinRefTot }
   }, [celdas])
+
+  // Metas por bucket (targets_engine.evaluar_buckets): real del saldo base por movimiento contra la meta del bucket.
+  const evalBuckets = useMemo(() => {
+    if (!vista) return null
+    const real = (o: string, mv: Mov) => {
+      const origen = vista.porOrigen.get(o as (typeof ORIGENES)[number])
+      return origen && origen.saldoBase ? origen.mov[mv].saldo / origen.saldoBase : null
+    }
+    const meta = (b: string, ind: string) => {
+      const m = metas.find((x) => x.bucket === b && x.indicador === ind)
+      return m?.valor_meta === null || m === undefined ? null : Number(m.valor_meta)
+    }
+    return ORIGENES.map((o) => {
+      const cel = (mv: Mov, ind: string, sentido: 'min' | 'max', noAplica: boolean) => {
+        const r = noAplica ? null : real(o, mv)
+        const mt = noAplica ? null : meta(o, ind)
+        let c: number | null = null
+        if (mt !== null && r !== null) c = sentido === 'min' ? (r / mt) : (r > 0 ? Math.min(mt / r, 2) : 2)
+        return { real: r, meta: mt, cumple: c, sem: semaforoCon(c, UMBRAL_VERDE, UMBRAL_AMARILLO) }
+      }
+      return {
+        bucket: o,
+        mejora: cel('Mejora', 'mejora_saldo', 'min', o === '0'),
+        mantiene: cel('Mantiene', 'mantiene_max', 'max', false),
+        desmejora: cel('Desmejora', 'desmejora_max', 'max', o === '6'),
+      }
+    })
+  }, [vista, metas])
 
   if (cargando) return <p className="vacio">Cargando…</p>
   if (error) return <div className="error-pantalla">No se pudieron cargar los datos: {error}</div>
@@ -152,7 +203,7 @@ export default function RollRates() {
 
   return (
     <>
-      <h1 style={{ marginBottom: 6 }}>Roll rates</h1>
+      <h1 style={{ marginBottom: 6 }}>Rodamiento</h1>
       <p className="dc-desc">
         Cohorte congelada: cuentas activas y saldo del primer día del mes. Solo cambia el bucket, según la mora de cada
         fecha de seguimiento.
@@ -218,6 +269,38 @@ export default function RollRates() {
             </p>
           </>
         )}
+      </div>
+
+      <Titulo texto={`Metas por bucket · ${corte ? corte.slice(0, 7) : ''}`} />
+      <div className="dc-tarjeta">
+        {metas.length === 0 ? (
+          <Nota tipo="alerta" texto="No hay metas por bucket para este mes. Asígnalas en Administración → Metas por bucket." />
+        ) : (
+          <table className="dc-tabla">
+            <thead>
+              <tr>
+                <th>Bucket inicial</th>
+                <th>Mejora real</th><th>Meta mejora</th><th>Cumplimiento</th>
+                <th>Mantiene real</th><th>Meta mantiene</th><th>Cumplimiento</th>
+                <th>Desmejora real</th><th>Meta desmejora</th><th>Cumplimiento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(evalBuckets ?? []).map((f) => (
+                <tr key={f.bucket}>
+                  <td>{f.bucket}</td>
+                  <CeldasMeta c={f.mejora} />
+                  <CeldasMeta c={f.mantiene} />
+                  <CeldasMeta c={f.desmejora} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p style={{ fontSize: 12, marginTop: 8 }}>
+          Mejora: saldo que baja de bucket, meta mínima (no aplica en el bucket 0). Mantiene y desmejora: meta máxima (desmejora no
+          aplica en el bucket 6). Cumplimiento: real ÷ meta, o meta ÷ real en los máximos (tope 200 %).
+        </p>
       </div>
 
       <Titulo texto="Resumen por bucket inicial" />

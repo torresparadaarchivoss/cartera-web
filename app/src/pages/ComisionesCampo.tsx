@@ -5,7 +5,8 @@ import * as adm from '../lib/administracion'
 import type { Asignacion, Usuario } from '../lib/administracion'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Titulo } from '../components/Bloques'
-import { estiloCumpl } from '../lib/prorrateo'
+
+import { escalaExcel } from '../lib/escala'
 import * as com from '../lib/comisiones'
 import { descargarExcel, type Hoja } from '../lib/exportar'
 import type { CarteraC, MiembroC, PagoC, VisitaC } from '../lib/comisiones'
@@ -114,6 +115,16 @@ export default function ComisionesCampo() {
     descargarExcel(`comisiones_${corte}.xlsx`, hojas)
   }
 
+  // Formato condicional dinámico (como el tablero): escala de 3 colores en Cumple cuota, Eficiencia y Alcance,
+  // calculada sobre los motorizados de cada equipo (sin el supervisor).
+  const escalas = new Map<string, { cumple: string | null; eficiencia: string | null; alcance: string | null }>()
+  for (const { filas } of resumenes) {
+    const cumple = escalaExcel(filas.map((f) => f.cumpleCuota))
+    const eficiencia = escalaExcel(filas.map((f) => f.eficiencia))
+    const alcance = escalaExcel(filas.map((f) => f.alcance))
+    filas.forEach((f, i) => escalas.set(f.usuario, { cumple: cumple[i], eficiencia: eficiencia[i], alcance: alcance[i] }))
+  }
+
   return (
     <>
       <h1 style={{ marginBottom: 6 }}>Comisiones de campo</h1>
@@ -149,10 +160,10 @@ export default function ComisionesCampo() {
                   {filas.map((f) => (
                     <tr key={f.usuario}>
                       <td>{f.supervisor || '—'}</td><td>{f.motorizado}</td><td>{entero(f.cuentas)}</td><td>{entero(f.cuentasValidas)}</td>
-                      <td style={estiloCumpl(f.cumpleCuota)}>{pct(f.cumpleCuota, 2)}</td>
-                      <td>{dinero(f.saldo, 2)}</td><td>{dinero(f.recaudoValido, 2)}</td><td>{pct(f.eficiencia, 2)}</td>
+                      <td style={escalas.get(f.usuario)?.cumple ? { background: escalas.get(f.usuario)!.cumple!, color: '#000' } : {}}>{pct(f.cumpleCuota, 2)}</td>
+                      <td>{dinero(f.saldo, 2)}</td><td>{dinero(f.recaudoValido, 2)}</td><td style={escalas.get(f.usuario)?.eficiencia ? { background: escalas.get(f.usuario)!.eficiencia!, color: '#000' } : {}}>{pct(f.eficiencia, 2)}</td>
                       <td>{dinero(f.comisionMora, 2)}</td><td>{dinero(f.comisionValida, 2)}</td><td>{pct(f.metaCuentaPago, 2)}</td>
-                      <td style={estiloCumpl(f.alcance)}>{pct(f.alcance)}</td><td>{dinero(f.comisionCuentasPago, 2)}</td>
+                      <td style={escalas.get(f.usuario)?.alcance ? { background: escalas.get(f.usuario)!.alcance!, color: '#000' } : {}}>{pct(f.alcance)}</td><td>{dinero(f.comisionCuentasPago, 2)}</td>
                       <td><strong>{dinero(f.comisionTotal, 2)}</strong></td>
                     </tr>
                   ))}

@@ -79,7 +79,7 @@ function MapaVisitas({ ubicaciones }: { ubicaciones: UbicacionDetalle[] }) {
 export default function CuentasGestionar() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [estrategia, setEstrategia] = useState<(typeof ESTRATEGIAS)[number]>('Prioridad de cobranza')
-  const [poblacion, setPoblacion] = useState<(typeof POBLACIONES)[number]>('Cohorte congelada')
+  const [poblacion, setPoblacion] = useState<(typeof POBLACIONES)[number]>('Cartera activa en la fecha')
   const [movs, setMovs] = useState<string[]>([])
   const [bIni, setBIni] = useState<string[]>([])
   const [bAct, setBAct] = useState<string[]>([])

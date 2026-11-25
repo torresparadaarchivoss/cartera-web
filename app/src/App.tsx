@@ -9,7 +9,6 @@ import Resumen from './pages/Resumen'
 import Cartera from './pages/Cartera'
 import Recuperacion from './pages/Recuperacion'
 import RollRates from './pages/RollRates'
-import RodamientoReal from './pages/RodamientoReal'
 import CuentasGestionar from './pages/CuentasGestionar'
 import VisitasCampo from './pages/VisitasCampo'
 import GestionCobros from './pages/GestionCobros'
@@ -65,8 +64,9 @@ export default function App() {
             <Route path="/" element={<Resumen />} />
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/recuperacion" element={<Recuperacion />} />
-            <Route path="/roll-rates" element={<RollRates />} />
-            <Route path="/rodamiento-real" element={<RodamientoReal />} />
+            <Route path="/rodamiento" element={<RollRates />} />
+            <Route path="/roll-rates" element={<Navigate to="/rodamiento" replace />} />
+            <Route path="/rodamiento-real" element={<Navigate to="/rodamiento" replace />} />
             <Route path="/cuentas-gestionar" element={<CuentasGestionar />} />
             <Route path="/visitas-campo" element={<VisitasCampo />} />
             <Route path="/gestion-cobros" element={<GestionCobros />} />
