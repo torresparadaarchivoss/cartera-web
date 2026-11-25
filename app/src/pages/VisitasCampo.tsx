@@ -16,6 +16,7 @@ import { kmTotal } from '../lib/kilometros'
 
 const PERIODOS = ['Acumulado del mes', 'Solo el día de seguimiento'] as const
 const TOP = ['Todas', 'Solo cuentas Top', 'Sin cuentas Top'] as const
+const COLOR_MOV: Record<string, string> = { Mejora: '#63BE7B', Mantiene: '#A3A8BD', Desmejora: '#F8696B', 'Sin registro': '#FFD966' }
 const COLORES = ['#4f5bb8', '#3fa04e', '#f89040', '#e25c52', '#88c038', '#aeb6ec', '#9C3352']
 
 type Periodo = (typeof PERIODOS)[number]
@@ -54,6 +55,7 @@ export default function VisitasCampo() {
   const [ubicaciones, setUbicaciones] = useState<UbicacionDetalle[]>([])
   const [cuentas, setCuentas] = useState<CuentaListado[] | null>(null)
   const [activas, setActivas] = useState<CuentaListado[] | null>(null)
+  const [cohorte, setCohorte] = useState<CuentaListado[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function VisitasCampo() {
         if (!vigente) return
         setCuentas([...a, ...b])
         setActivas(b)
+        setCohorte(a)
       })
       .catch((e: Error) => vigente && setError(e.message))
     return () => {
@@ -148,6 +151,26 @@ export default function VisitasCampo() {
     for (const [credito, dia] of ultima) total += carteraDia?.get(`${credito}|${dia}`)?.saldo ?? 0
     return total
   }, [visitasFiltradas, carteraDia])
+
+  // Evolución de la cohorte: visitadas en el mes vs sin visita, % del saldo base por movimiento (services/visitas.evolucion_visitados).
+  const evolucionVisitas = useMemo(() => {
+    const grupos = new Map<string, Map<string, number>>()
+    const cuentasG = new Map<string, number>()
+    for (const c of cohorte ?? []) {
+      if (c.origen === 'Sin referencia') continue
+      const g = c.visitas_mes > 0 ? 'Visitadas en el mes' : 'Sin visita'
+      const mv = grupos.get(g) ?? new Map<string, number>()
+      mv.set(c.movimiento, (mv.get(c.movimiento) ?? 0) + c.saldo_congelado)
+      grupos.set(g, mv)
+      cuentasG.set(g, (cuentasG.get(g) ?? 0) + 1)
+    }
+    return ['Visitadas en el mes', 'Sin visita'].filter((g) => grupos.has(g)).map((g) => {
+      const mv = grupos.get(g)!
+      const total = [...mv.values()].reduce((a, b) => a + b, 0)
+      const pct = Object.fromEntries([...mv.entries()].map(([k, v]) => [k, total ? v / total : 0]))
+      return { grupo: g, cuentas: cuentasG.get(g) ?? 0, pct }
+    })
+  }, [cohorte])
 
   // Cartera visitada: cuentas críticas (prioridad «Crítico») de la cartera activa, con o sin visita en el mes.
   const criticas = useMemo(() => {
@@ -290,6 +313,15 @@ export default function VisitasCampo() {
         <Kpi etiqueta="Con promesa" valor={entero(promesas)} detalle={pct(v.length ? promesas / v.length : null)} tono="bueno" />
       </FilaKpi>
 
+      {evolucionVisitas.length > 0 && (
+        <Grafico titulo="Evolución de mora de la cohorte: visitadas vs sin visita" alto={200}
+          data={(['Mejora', 'Mantiene', 'Desmejora', 'Sin registro'] as const).map((mv) => ({
+            type: 'bar', orientation: 'h', name: mv, y: evolucionVisitas.map((g) => `${g.grupo} (${entero(g.cuentas)})`),
+            x: evolucionVisitas.map((g) => g.pct[mv] ?? 0), marker: { color: COLOR_MOV[mv] },
+            hovertemplate: `${mv}: %{x:.1%}<extra></extra>`,
+          })) as unknown as Data[]}
+          layout={{ barmode: 'stack', xaxis: { tickformat: '.0%', range: [0, 1] }, margin: { l: 8, r: 16, t: 16, b: 30 } } as Partial<Layout>} />
+      )}
       <Tabla titulo={`Resultados por ${agrupacion.toLowerCase()}`} etiquetaFila={agrupacion}
         cabeceras={cabeceras} filas={filasGrupo} total={totalGrupo} />
 
