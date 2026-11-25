@@ -1,8 +1,9 @@
 """Carga el detalle de gestiones y visitas del mes en Supabase (tablas gestion y visita).
 
 Usa la misma lectura del Streamlit (services/data_store.cargar_mes), así los datos son los mismos que muestra
-Cuentas a gestionar. Solo se cargan columnas sin datos personales: no van nombre del cliente, domicilio, salario,
-coordenadas ni comentarios libres de visita.
+Cuentas a gestionar. Las tablas gestion y visita no llevan datos personales. Los datos del cliente del loantape van a
+cliente_loantape, con acceso solo para administradores generales (RLS). No se cargan coordenadas ni comentarios libres
+de visita.
 
 Uso (desde scripts/, con SUPABASE_DB_URL definida en el entorno):
     python cargar_detalle.py --mes 2026-11 [--origen "C:\\Users\\...\\dashboard_cartera"] [--dry-run]
@@ -18,6 +19,8 @@ import pandas as pd
 
 GESTION = ["credito", "fecha_actividad", "usuario", "accion", "resultado", "contacto", "rpc", "promesa",
            "monto_promesa", "fecha_promesa"]
+CLIENTE = ["credito", "ciudad", "nombre_mod", "fecha_renov", "nombre_deudor", "edad", "genero", "salario",
+           "ubicacion", "profesion", "dire_trabajo", "saldopagare", "ruta_domicilio", "ruta_trabajo", "f_cierre"]
 VISITA = ["credito", "fecha_visita", "visitador", "accion", "resultado", "causa_no_pago", "parentesco", "num_fotos",
           "kilometros"]
 
@@ -53,6 +56,17 @@ def preparar_visita(v: pd.DataFrame) -> pd.DataFrame:
     return out.dropna(subset=["fecha_visita"])[VISITA]
 
 
+def preparar_cliente(lt: pd.DataFrame) -> pd.DataFrame:
+    """Datos personales del cierre de loantape: solo para la tabla restringida cliente_loantape."""
+    out = lt.assign(credito=lt["credito"].astype(str).str.strip())
+    for c in ("fecha_renov", "f_cierre"):
+        out[c] = pd.to_datetime(out[c], errors="coerce").dt.date
+    for c in ("edad", "salario", "saldopagare"):
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    out["edad"] = out["edad"].astype("Int64")
+    return out.drop_duplicates("credito", keep="last")[CLIENTE]
+
+
 def _valor(v):
     if v is None or (isinstance(v, float) and pd.isna(v)) or v is pd.NaT:
         return None
@@ -61,7 +75,7 @@ def _valor(v):
     return v
 
 
-def cargar(gestion: pd.DataFrame, visita: pd.DataFrame) -> None:
+def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame) -> None:
     import psycopg  # solo al escribir: el dry-run no lo necesita
 
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
@@ -72,6 +86,10 @@ def cargar(gestion: pd.DataFrame, visita: pd.DataFrame) -> None:
             cur.execute("delete from public.gestion")
             with cur.copy(f"copy public.gestion ({', '.join(GESTION)}) from stdin") as cp:
                 for fila in gestion.itertuples(index=False):
+                    cp.write_row([_valor(v) for v in fila])
+            cur.execute("delete from public.cliente_loantape")
+            with cur.copy(f"copy public.cliente_loantape ({', '.join(CLIENTE)}) from stdin") as cp:
+                for fila in cliente.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
             cur.execute("delete from public.visita")
             with cur.copy(f"copy public.visita ({', '.join(VISITA)}) from stdin") as cp:
@@ -95,12 +113,14 @@ def main() -> None:
     d = cargar_mes(anio, mes, usar_cache=False)
     gestion = preparar_gestion(d.gestiones)
     visita = preparar_visita(d.visitas)
+    cliente = preparar_cliente(d.loantape)
     print(f"Gestiones: {len(gestion):,} filas (de {len(d.gestiones):,} leídas).")
     print(f"Visitas: {len(visita):,} filas (de {len(d.visitas):,} leídas).")
+    print(f"Clientes (datos personales, acceso restringido): {len(cliente):,} filas.")
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
         return
-    cargar(gestion, visita)
+    cargar(gestion, visita, cliente)
     print("Detalle cargado en Supabase (gestion y visita del mes).")
 
 
