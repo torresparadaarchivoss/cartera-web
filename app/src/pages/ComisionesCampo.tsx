@@ -11,8 +11,8 @@ import { descargarExcelComisiones, COLUMNAS_PLANILLA, type FilaPlanilla } from '
 import * as com from '../lib/comisiones'
 import type { CarteraC, MiembroC, PagoC, VisitaC } from '../lib/comisiones'
 
-// Comisiones de campo (modules/comisiones.py). Usa todo el mes y no aplica los filtros globales. Pendiente: el código de
-// resultado de visita (cod_resultado) y la asignación por zona de la llave, y la exportación a Excel.
+// Comisiones de campo (modules/comisiones.py). Usa todo el mes y no aplica los filtros globales. Pendiente: la asignación
+// por zona de la llave.
 
 const EQUIPOS = [com.ADMIN, com.LEGAL] as const
 const FORMATO_PLANILLA: Record<string, string> = {
@@ -173,7 +173,7 @@ export default function ComisionesCampo() {
       </p>
 
       <Nota texto={`Mes ${periodo} · corte al ${fecha(corte)}. Tasas y topes: Administración → Parámetros de comisión cuando están guardados; si no, los del tablero.`} />
-      <Nota tipo="alerta" texto="Pendiente: código de resultado de la visita, asignación por zona de la llave y exportación a Excel." />
+      <Nota tipo="alerta" texto="Pendiente: asignación por zona de la llave (la base no trae ese dato)." />
 
       <FilaKpi>
         <Kpi etiqueta="Motorizados" valor={entero(equipo.length)} detalle={`${entero(equipo.filter((m) => m.equipo === com.ADMIN).length)} administrativos`} />
