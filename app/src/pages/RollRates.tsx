@@ -11,7 +11,6 @@ import { evolucion } from '../lib/evolucion'
 import * as adm from '../lib/administracion'
 import type { MetaBucket } from '../lib/administracion'
 import { semaforoCon } from '../lib/metas'
-import { CELDA_SEM } from '../lib/prorrateo'
 
 
 const MEDIDAS = ['% del saldo base', '% de cuentas', 'Saldo base', 'Cuentas', 'Saldo observado'] as const
@@ -26,18 +25,6 @@ const COLOR = { Mejora: '#63BE7B', Mantiene: '#A3A8BD', Desmejora: '#F8696B', 'S
 const UMBRAL_VERDE = 1
 const UMBRAL_AMARILLO = 0.8
 
-// Tres celdas de una meta: real, meta y cumplimiento con el color del semáforo.
-type CeldaMeta = { real: number | null; meta: number | null; cumple: number | null; sem: string | null }
-function CeldasMeta({ c }: { c: CeldaMeta }) {
-  const color = c.sem && c.sem in CELDA_SEM ? CELDA_SEM[c.sem as keyof typeof CELDA_SEM] : undefined
-  return (
-    <>
-      <td>{c.real === null ? '—' : pct(c.real)}</td>
-      <td>{c.meta === null ? '—' : pct(c.meta)}</td>
-      <td style={color ? { background: color } : {}}>{c.cumple === null ? '—' : pct(c.cumple)}</td>
-    </>
-  )
-}
 
 type Mov = 'Mejora' | 'Mantiene' | 'Desmejora' | 'Sin registro'
 
@@ -236,6 +223,11 @@ export default function RollRates() {
               colorFilas={evoColor.filas}
               columnas={['Mejora', 'Mantiene', 'Desmejora']}
               medida={medida}
+              metas={(evalBuckets ?? []).map((f) => [
+                { ...f.mejora, noAplica: f.bucket === '0' },
+                { ...f.mantiene, noAplica: false },
+                { ...f.desmejora, noAplica: f.bucket === '6' },
+              ])}
             />
             <p style={{ fontSize: 12, marginTop: 8 }}>
               Filas: bucket inicial. Porcentajes sobre el total de la fila (incluye «Sin registro»). «—» en mejora del bucket 0 y deterioro del bucket 6.
@@ -269,38 +261,6 @@ export default function RollRates() {
             </p>
           </>
         )}
-      </div>
-
-      <Titulo texto={`Metas por bucket · ${corte ? corte.slice(0, 7) : ''}`} />
-      <div className="dc-tarjeta">
-        {metas.length === 0 ? (
-          <Nota tipo="alerta" texto="No hay metas por bucket para este mes. Asígnalas en Administración → Metas por bucket." />
-        ) : (
-          <table className="dc-tabla">
-            <thead>
-              <tr>
-                <th>Bucket inicial</th>
-                <th>Mejora real</th><th>Meta mejora</th><th>Cumplimiento</th>
-                <th>Mantiene real</th><th>Meta mantiene</th><th>Cumplimiento</th>
-                <th>Desmejora real</th><th>Meta desmejora</th><th>Cumplimiento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(evalBuckets ?? []).map((f) => (
-                <tr key={f.bucket}>
-                  <td>{f.bucket}</td>
-                  <CeldasMeta c={f.mejora} />
-                  <CeldasMeta c={f.mantiene} />
-                  <CeldasMeta c={f.desmejora} />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p style={{ fontSize: 12, marginTop: 8 }}>
-          Mejora: saldo que baja de bucket, meta mínima (no aplica en el bucket 0). Mantiene y desmejora: meta máxima (desmejora no
-          aplica en el bucket 6). Cumplimiento: real ÷ meta, o meta ÷ real en los máximos (tope 200 %).
-        </p>
       </div>
 
       <Titulo texto="Resumen por bucket inicial" />

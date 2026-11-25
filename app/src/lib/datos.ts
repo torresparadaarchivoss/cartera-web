@@ -232,7 +232,8 @@ export async function metasRecuperacion(periodo: string): Promise<MetasRecuperac
   const [mb, ml, lc] = await Promise.all([
     supabase.from('metas_bucket').select('bucket, valor_meta').eq('periodo', periodo).eq('indicador', 'recuperacion'),
     supabase.from('metas_legal').select('llave, indicador, valor_meta').eq('periodo', periodo),
-    supabase.from('legal_canal').select('gestor, canal').eq('periodo', periodo),
+    // Canal vigente: el del mes o el del último mes registrado (como el Streamlit); las metas son del mes exacto.
+    supabase.from('legal_canal').select('gestor, canal, periodo').lte('periodo', periodo).order('periodo', { ascending: false }),
   ])
   for (const r of [mb, ml, lc]) if (r.error) throw new Error(r.error.message)
 
@@ -247,7 +248,9 @@ export async function metasRecuperacion(periodo: string): Promise<MetasRecuperac
     if (r.indicador === 'canal') porCanal.set(r.llave, Number(r.valor_meta))
   }
   const canalGestor: Record<string, string> = {}
-  for (const r of lc.data ?? []) if (r.canal) canalGestor[r.gestor] = r.canal
+  for (const r of (lc.data ?? []) as { gestor: string; canal: string | null }[]) {
+    if (r.canal && !(r.gestor in canalGestor)) canalGestor[r.gestor] = r.canal
+  }
 
   const metaCanal: Record<string, number> = {}
   const origenCanal: Record<string, 'individual' | 'canal'> = {}
