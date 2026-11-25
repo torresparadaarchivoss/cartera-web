@@ -126,9 +126,7 @@ export default function Recuperacion() {
   if (!vista || !corte || !fechaBase || !filtros) return <p className="vacio">Cargando el mes…</p>
 
   const { filas, tot } = vista
-  if (tot.pagado === 0 && filas.every((f) => f.metaMes === null)) {
-    return <Nota tipo="alerta" texto="No hay pagos con los filtros seleccionados." />
-  }
+  const sinPagos = tot.pagado === 0 && filas.every((f) => f.metaMes === null)
 
   const legal = filas.find((f) => f.fila === 'Legal')?.pagado ?? 0
   const admin = tot.pagado - legal
@@ -186,6 +184,7 @@ export default function Recuperacion() {
         <Kpi etiqueta="Pago promedio por crédito" valor={dinero(tot.promedio)} />
       </FilaKpi>
 
+      {sinPagos && <Nota tipo="alerta" texto="No hay pagos con los filtros seleccionados." />}
       <Titulo texto="Pagos y meta por bucket de mora" />
       <div className="dc-tarjeta">
         <div style={{ maxWidth: 260, marginBottom: 8 }}>
