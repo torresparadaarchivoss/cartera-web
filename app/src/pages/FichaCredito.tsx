@@ -5,6 +5,7 @@ import * as datos from '../lib/datos'
 import type { ClienteDetalle, CuentaListado, GestionDetalle, HistorialCartera, PagoCredito, VisitaDetalle } from '../lib/datos'
 import { dinero, entero, fecha } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
+import * as adm from '../lib/administracion'
 import type { Data, Layout } from 'plotly.js'
 
 // Ficha de crédito (modules/ficha_credito.py). Pendiente: línea de tiempo gráfica, la referencia de mora del cierre
@@ -12,17 +13,29 @@ import type { Data, Layout } from 'plotly.js'
 
 interface Evento {
   fecha: string
-  tipo: 'Gestión' | 'Pago' | 'Visita'
+  tipo: string
   detalle: string
+}
+
+// Tipos de la línea de tiempo (modules/ficha_credito.EVENTOS).
+const EVENTOS: Record<string, string> = {
+  'Gestión sin contacto': '#8A8FA6', Contacto: '#4f5bb8', RPC: '#2D3A7C', Promesa: '#3FA04E', Pago: '#2E7D3C', Visita: '#F89040',
+}
+
+function tipoGestion(g: GestionDetalle): string {
+  if (g.promesa) return 'Promesa'
+  if (g.rpc) return 'RPC'
+  if (g.contacto) return 'Contacto'
+  return 'Gestión sin contacto'
 }
 
 function eventos(g: GestionDetalle[], p: PagoCredito[], v: VisitaDetalle[], agentes: Map<string, string>): Evento[] {
   const salida: Evento[] = []
   for (const x of g) {
-    let det = `${x.resultado || x.accion} · ${agentes.get(x.usuario) ?? x.usuario}`
+    let det = `${x.resultado || x.accion} · ${agentes.get(x.usuario.trim().toLowerCase()) ?? x.usuario}`
     if (x.promesa && x.monto_promesa) det += ` · promete ${dinero(x.monto_promesa, 2)}`
     if (x.promesa && x.fecha_promesa) det += ` para el ${fecha(x.fecha_promesa)}`
-    salida.push({ fecha: x.fecha_actividad, tipo: 'Gestión', detalle: det })
+    salida.push({ fecha: x.fecha_actividad, tipo: tipoGestion(x), detalle: det })
   }
   for (const x of p) salida.push({ fecha: x.fecha, tipo: 'Pago', detalle: `pagó ${dinero(x.pago, 2)}${x.canal ? ` · ${x.canal}` : ''}` })
   for (const x of v) {
@@ -42,6 +55,11 @@ export default function FichaCredito() {
   const [ficha, setFicha] = useState<Awaited<ReturnType<typeof datos.fichaCredito>> | null>(null)
   const [cliente, setCliente] = useState<ClienteDetalle | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [usuarios, setUsuarios] = useState<adm.Usuario[] | null>(null)
+
+  useEffect(() => {
+    adm.usuarios().then(setUsuarios).catch((e: Error) => setError(e.message))
+  }, [])
 
   useEffect(() => {
     if (!corte || !filtros) return
@@ -86,8 +104,9 @@ export default function FichaCredito() {
   const ult = hist.length ? hist[hist.length - 1] : null
   const pri = hist.length ? hist[0] : null
   const pagado = (ficha0?.pagos ?? []).reduce((a, x) => a + x.pago, 0)
-  const agentes = new Map<string, string>()
+  const agentes = new Map((usuarios ?? []).map((u) => [u.usuario_norm.toLowerCase(), u.nombre_mostrado || u.usuario_norm] as const))
   const ev = ficha0 ? eventos(ficha0.gestiones, ficha0.pagos, ficha0.visitas, agentes) : []
+  const nombreAgente = (u: string) => agentes.get(u.trim().toLowerCase()) ?? u
 
   const grafico: Data[] = hist.length ? [
     { type: 'scatter', mode: 'lines+markers', name: 'Saldo', x: hist.map((h) => h.f_reporte), y: hist.map((h) => h.saldo),
@@ -145,6 +164,52 @@ export default function FichaCredito() {
               yaxis: { tickformat: ',.0f', rangemode: 'tozero', title: { text: 'saldo' } },
               yaxis2: { overlaying: 'y', side: 'right', showgrid: false, title: { text: 'días' } },
             } as unknown as Partial<Layout>} config={{ displayModeBar: false, responsive: true }} style={{ width: '100%' }} useResizeHandler />
+          </div>
+
+          {ev.length > 0 && (
+            <div className="dc-tarjeta">
+              <Titulo texto="Línea de tiempo de la actividad" />
+              <Plot data={Object.keys(EVENTOS).filter((t) => ev.some((e) => e.tipo === t)).map((t) => ({
+                type: 'scatter', mode: 'markers', name: t, x: ev.filter((e) => e.tipo === t).map((e) => e.fecha),
+                y: ev.filter((e) => e.tipo === t).map(() => t), text: ev.filter((e) => e.tipo === t).map((e) => e.detalle),
+                hovertemplate: '%{x|%d/%m %H:%M}<br>%{text}<extra>' + t + '</extra>',
+                marker: { size: 12, color: EVENTOS[t], line: { color: '#FFFFFF', width: 1.5 } },
+              })) as unknown as Data[]}
+                layout={{ height: 80 + 42 * Object.keys(EVENTOS).filter((t) => ev.some((e) => e.tipo === t)).length, hovermode: 'closest',
+                  showlegend: false, margin: { l: 8, r: 16, t: 16, b: 30 }, yaxis: { type: 'category', automargin: true } } as unknown as Partial<Layout>}
+                config={{ displayModeBar: false, responsive: true }} style={{ width: '100%' }} useResizeHandler />
+            </div>
+          )}
+
+          <div className="dc-tarjeta">
+            <Titulo texto={`Gestiones del crédito (${entero(ficha0?.gestiones.length ?? 0)})`} />
+            <div className="ventana">
+              <table className="dc-tabla">
+                <thead><tr><th>Fecha</th><th>Agente</th><th>Acción</th><th>Resultado</th><th>Tipo</th><th>Monto prometido</th><th>Fecha de promesa</th></tr></thead>
+                <tbody>
+                  {(ficha0?.gestiones ?? []).map((g, i) => (
+                    <tr key={i}><td>{fecha(g.fecha_actividad.slice(0, 10))}</td><td>{nombreAgente(g.usuario)}</td><td>{g.accion}</td>
+                      <td>{g.resultado}</td><td>{tipoGestion(g)}</td><td>{g.promesa ? dinero(g.monto_promesa, 2) : '—'}</td>
+                      <td>{g.fecha_promesa ? fecha(g.fecha_promesa) : '—'}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="dc-tarjeta">
+            <Titulo texto={`Visitas del crédito (${entero(ficha0?.visitas.length ?? 0)})`} />
+            <div className="ventana">
+              <table className="dc-tabla">
+                <thead><tr><th>Fecha</th><th>Visitador</th><th>Acción</th><th>Resultado</th><th>Causa de no pago</th><th>Fotos</th><th>Km</th></tr></thead>
+                <tbody>
+                  {(ficha0?.visitas ?? []).map((v, i) => (
+                    <tr key={i}><td>{fecha(v.fecha_visita.slice(0, 10))}</td><td>{nombreAgente(v.visitador)}</td><td>{v.accion}</td>
+                      <td>{v.resultado}</td><td>{v.causa_no_pago}</td><td>{entero(v.num_fotos)}</td><td>{v.kilometros === null ? '—' : entero(v.kilometros)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="dc-tarjeta">
