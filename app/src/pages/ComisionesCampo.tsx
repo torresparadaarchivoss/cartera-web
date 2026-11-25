@@ -7,14 +7,23 @@ import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Kpi, Nota, Titulo } from '../components/Bloques'
 
 import { escalaExcel } from '../lib/escala'
+import { descargarExcelComisiones, COLUMNAS_PLANILLA, type FilaPlanilla } from '../lib/excelComisiones'
 import * as com from '../lib/comisiones'
-import { descargarExcel, type Hoja } from '../lib/exportar'
 import type { CarteraC, MiembroC, PagoC, VisitaC } from '../lib/comisiones'
 
 // Comisiones de campo (modules/comisiones.py). Usa todo el mes y no aplica los filtros globales. Pendiente: el código de
 // resultado de visita (cod_resultado) y la asignación por zona de la llave, y la exportación a Excel.
 
 const EQUIPOS = [com.ADMIN, com.LEGAL] as const
+const FORMATO_PLANILLA: Record<string, string> = {
+  Cuentas: '#,##0', 'Cuentas válidas': '#,##0', 'Cumple cuota': '0.00%', 'Saldo capital': '#,##0.00', 'Recaudo válido': '#,##0.00',
+  Eficiencia: '0.00%', 'Comisión por mora': '#,##0.00', 'Comisión válida recaudo': '#,##0.00', 'Meta cuenta pago': '0.00%',
+  'Alcance cuentas pago': '0.00%', 'Comisión cuentas pago': '#,##0.00', 'Comisión total': '#,##0.00',
+}
+const FORMATO_DETALLE: Record<string, string> = {
+  'Saldo capital': '#,##0.00', Cuota: '#,##0.00', 'Recaudo meta': '#,##0.00', Recaudo: '#,##0.00', 'Recaudo DMT': '#,##0.00',
+  'Recaudo válido': '#,##0.00', Tasa: '0.00%', Comisión: '#,##0.00',
+}
 
 export default function ComisionesCampo() {
   const { fecha: corte, fechaBase, cargando } = useDatos()
@@ -95,24 +104,53 @@ export default function ComisionesCampo() {
   const totalComision = resumenes.reduce((a, r) => a + r.filas.reduce((x, f) => x + f.comisionTotal, 0), 0)
   const totalRecaudo = cuentasCalc.reduce((a, c) => a + c.recaudo_valido, 0)
 
+  // Excel como el del Streamlit: planilla por equipo (con fila TOTAL) y hoja Detalle por cuenta.
   const descargarTodo = () => {
-    const hojas: Hoja[] = resumenes.map(({ eq, filas }) => ({
-      nombre: `Resumen ${eq}`,
-      filas: filas.map((f) => ({
-        Supervisor: f.supervisor, Motorizado: f.motorizado, Usuario: f.usuario, Cuentas: f.cuentas,
+    const planilla = (filas: typeof resumenes[number]['filas']): (FilaPlanilla)[] => {
+      const rows: FilaPlanilla[] = filas.map((f) => ({
+        Motorizado: f.motorizado, Usuario: f.usuario, Puesto: 'Gestor motorizado', Cuentas: f.cuentas,
         'Cuentas válidas': f.cuentasValidas, 'Cumple cuota': f.cumpleCuota, 'Saldo capital': f.saldo,
         'Recaudo válido': f.recaudoValido, Eficiencia: f.eficiencia, 'Comisión por mora': f.comisionMora,
         'Comisión válida recaudo': f.comisionValida, 'Meta cuenta pago': f.metaCuentaPago, 'Alcance cuentas pago': f.alcance,
         'Comisión cuentas pago': f.comisionCuentasPago, 'Comisión total': f.comisionTotal,
+      }))
+      const suma = (k: keyof FilaPlanilla) => rows.reduce((a, r) => a + ((r[k] as number | null) ?? 0), 0)
+      const n = suma('Cuentas')
+      const paga = suma('Cuentas válidas')
+      const saldo = suma('Saldo capital')
+      const valido = suma('Recaudo válido')
+      rows.push({
+        Motorizado: 'TOTAL', Usuario: '', Puesto: '', Cuentas: n, 'Cuentas válidas': paga,
+        'Cumple cuota': n ? paga / n : null, 'Saldo capital': saldo, 'Recaudo válido': valido,
+        Eficiencia: saldo ? valido / saldo : null, 'Comisión por mora': suma('Comisión por mora'),
+        'Comisión válida recaudo': suma('Comisión válida recaudo'), 'Meta cuenta pago': prm.meta_cuentas_pago,
+        'Alcance cuentas pago': null, 'Comisión cuentas pago': suma('Comisión cuentas pago'),
+        'Comisión total': suma('Comisión total'),
+      })
+      return rows
+    }
+    const hojas: Parameters<typeof descargarExcelComisiones>[1] = []
+    for (const { eq, filas } of resumenes) {
+      if (!filas.length) continue
+      hojas.push({
+        nombre: eq, columnas: COLUMNAS_PLANILLA as string[], filas: planilla(filas) as unknown as Record<string, string | number | null>[],
+        conEscala: 'Alcance cuentas pago', puestoMotorizado: 'Gestor motorizado', formatos: FORMATO_PLANILLA,
+      })
+    }
+    hojas.push({
+      nombre: 'Detalle',
+      columnas: ['Motorizado', 'Equipo', 'Crédito', 'Asignación', 'Visita válida', 'Due inicio de mes', 'Saldo capital', 'Cuota',
+        'Recaudo meta', 'Recaudo', 'Recaudo DMT', 'Recaudo válido', 'Tasa', 'Comisión', 'Paga cuota', 'Código de visita'],
+      filas: cuentasCalc.map((c) => ({
+        Motorizado: nombres.get(c.usuario) ?? c.usuario, Equipo: c.equipo, 'Crédito': c.credito,
+        Asignación: c.fecha_asignacion, 'Visita válida': c.visita_valida ? 'Sí' : 'No', 'Due inicio de mes': c.categoria,
+        'Saldo capital': c.saldo, Cuota: c.cuota, 'Recaudo meta': c.recaudo_meta, Recaudo: c.recaudo, 'Recaudo DMT': c.recaudo_dmt,
+        'Recaudo válido': c.recaudo_valido, Tasa: c.tasa, Comisión: c.comision, 'Paga cuota': c.paga_cuota ? 'Sí' : 'No',
+        'Código de visita': c.codigo_visita,
       })),
-    }))
-    hojas.push({ nombre: 'Cuentas', filas: cuentasCalc.map((c) => ({
-      Equipo: c.equipo, Motorizado: nombres.get(c.usuario) ?? c.usuario, Usuario: c.usuario, Crédito: c.credito,
-      'Fecha de asignación': c.fecha_asignacion, 'Visita válida': c.visita_valida ? 'Sí' : 'No', 'Due inicio de mes': c.categoria,
-      Saldo: c.saldo, Cuota: c.cuota, 'Recaudo meta': c.recaudo_meta, Recaudo: c.recaudo, 'Recaudo DMT': c.recaudo_dmt,
-      'Recaudo válido': c.recaudo_valido, Tasa: c.tasa, Comisión: c.comision, 'Paga cuota': c.paga_cuota ? 'Sí' : 'No',
-    })) })
-    descargarExcel(`comisiones_${corte}.xlsx`, hojas)
+      formatos: FORMATO_DETALLE,
+    })
+    void descargarExcelComisiones(`comisiones_campo_${corte.replace(/-/g, "")}.xlsx`, hojas)
   }
 
   // Formato condicional dinámico (como el tablero): escala de 3 colores en Cumple cuota, Eficiencia y Alcance,
