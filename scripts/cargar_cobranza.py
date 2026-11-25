@@ -271,8 +271,21 @@ COLUMNAS_PAGO_TABLA = ["credito", "fecha", "pago", "supervisor", "tipo_credito",
                        "bucket_pago", "bucket_inicial", "canal"]
 
 
+def desde_incremental(ini: dt.date) -> dt.date | None:
+    """Primer día a escribir en modo incremental: el último día cargado menos uno (se vuelve a cargar por si cambió).
+    None = mes sin datos en Supabase: carga completa del mes."""
+    url = os.environ.get("SUPABASE_DB_URL", "").strip()
+    if not url:
+        sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
+    with psycopg.connect(url, autocommit=True) as con:
+        ultimo = con.execute("select max(f_reporte) from public.cobranza_diaria where f_reporte >= %s", (ini,)).fetchone()[0]
+    if ultimo is None:
+        return None
+    return max(ini, ultimo - dt.timedelta(days=1))
+
+
 def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, estado: pd.DataFrame,
-                    pagos: pd.DataFrame, metas: dict) -> None:
+                    pagos: pd.DataFrame, metas: dict, desde: dt.date | None = None) -> None:
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
     if not url:
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
@@ -305,14 +318,22 @@ def cargar_supabase(df: pd.DataFrame, ini: dt.date, promesas: pd.DataFrame, esta
                 with cur.copy(f"copy public.{tabla} ({', '.join(cols)}) from stdin") as cp:
                     for fila in metas[tabla][cols].itertuples(index=False):
                         cp.write_row([_valor_sql(v) for v in fila])
-            # Pagos del mes: se reemplazan completos.
-            cur.execute("delete from public.pago")
+            # Pagos del mes: completos, o desde el día incremental.
+            if desde is None:
+                cur.execute("delete from public.pago")
+            else:
+                cur.execute("delete from public.pago where fecha >= %s", (desde,))
+                pagos = pagos[pd.to_datetime(pagos["fecha"]).dt.date >= desde]
             with cur.copy(f"copy public.pago ({', '.join(COLUMNAS_PAGO_TABLA)}) from stdin") as cp:
                 solo_fecha = pagos.assign(fecha=pd.to_datetime(pagos["fecha"]).dt.date)
                 for fila in solo_fecha[COLUMNAS_PAGO_TABLA].itertuples(index=False):
                     cp.write_row([_valor_sql(v) for v in fila])
-            # Estado de promesas por día y crédito: se reemplaza completo.
-            cur.execute("delete from public.promesa_dia")
+            # Estado de promesas por día y crédito: completo, o desde el día incremental.
+            if desde is None:
+                cur.execute("delete from public.promesa_dia")
+            else:
+                cur.execute("delete from public.promesa_dia where f_reporte >= %s", (desde,))
+                estado = estado[pd.to_datetime(estado["f_reporte"]).dt.date >= desde]
             with cur.copy(f"copy public.promesa_dia ({', '.join(COLUMNAS_ESTADO)}) from stdin") as cp:
                 solo_fecha = estado.assign(f_reporte=pd.to_datetime(estado["f_reporte"]).dt.date)
                 for fila in solo_fecha[COLUMNAS_ESTADO].itertuples(index=False):
@@ -328,6 +349,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mes", help="AAAA-MM. Por defecto, el mes en curso.")
     ap.add_argument("--dry-run", action="store_true", help="Lee SQL Server y muestra el resumen; no escribe.")
+    ap.add_argument("--completo", action="store_true", help="Carga todo el mes (por defecto solo lo nuevo desde el último día cargado).")
     args = ap.parse_args()
 
     hoy = dt.date.today()
@@ -354,6 +376,7 @@ def main() -> None:
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
         return
+    desde = None if args.completo else desde_incremental(ini)
     if df.empty:
         sys.exit("Nada que cargar; no se borró nada en Supabase.")
     with conexion_origen() as con:
@@ -375,7 +398,15 @@ def main() -> None:
     print(f"Estado de promesas por día: {len(estado):,} filas.")
     metas = leer_metas()
     print(f"Metas: {sum(len(v) for v in metas.values())} filas.")
-    cargar_supabase(df, ini, promesas, estado, pagos_enr, metas)
+    if desde is not None:
+        # Incremental: solo se escriben los días desde el último cargado (el cálculo usa todo el mes).
+        df = df[df["f_reporte"] >= desde]
+        estado = estado[pd.to_datetime(estado["f_reporte"]).dt.date >= desde]
+        print(f"Incremental desde {desde}: {len(df):,} filas de cartera nuevas.")
+        if df.empty:
+            print("Sin días nuevos que cargar.")
+            return
+    cargar_supabase(df, ini, promesas, estado, pagos_enr, metas, desde)
 
 
 if __name__ == "__main__":

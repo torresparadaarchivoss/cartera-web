@@ -11,6 +11,7 @@ Uso (desde scripts/, con SUPABASE_DB_URL definida en el entorno):
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import os
 import sys
 
@@ -144,8 +145,23 @@ def sincronizar_usuarios(cur, agentes: set[str], visitadores: set[str], supervis
     return {"altas_agente": altas["agente"], "altas_visitador": altas["visitador"], "roles_asignados": roles}
 
 
+def desde_detalle(anio: int, mes: int) -> dt.date | None:
+    """Primer día a reemplazar en modo incremental: el último día de gestiones cargado, menos uno. None = sin datos del
+    mes en Supabase (carga completa)."""
+    url = os.environ.get("SUPABASE_DB_URL", "").strip()
+    if not url:
+        sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
+    import psycopg  # noqa: E402  (solo al escribir)
+    inicio = dt.date(anio, mes, 1)
+    with psycopg.connect(url, autocommit=True) as con:
+        ultimo = con.execute("select max(fecha_actividad::date) from public.gestion where fecha_actividad >= %s", (inicio,)).fetchone()[0]
+    if ultimo is None:
+        return None
+    return max(inicio, ultimo - dt.timedelta(days=1))
+
+
 def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, ubicacion: pd.DataFrame,
-           usuarios: tuple[set[str], set[str], set[str]] | None = None) -> None:
+           usuarios: tuple[set[str], set[str], set[str]] | None = None, desde: dt.date | None = None) -> None:
     import psycopg  # solo al escribir: el dry-run no lo necesita
 
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
@@ -153,11 +169,20 @@ def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, u
         sys.exit("Falta la variable de entorno SUPABASE_DB_URL.")
     with psycopg.connect(url, autocommit=False) as con:
         with con.cursor() as cur:
-            cur.execute("delete from public.gestion")
+            # Incremental: se reemplazan solo los días desde «desde»; completo: todo el mes.
+            if desde is None:
+                cur.execute("delete from public.gestion")
+            else:
+                cur.execute("delete from public.gestion where fecha_actividad::date >= %s", (desde,))
+                gestion = gestion[gestion["fecha_actividad"].dt.date >= desde]
             with cur.copy(f"copy public.gestion ({', '.join(GESTION)}) from stdin") as cp:
                 for fila in gestion.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
-            cur.execute("delete from public.visita_ubicacion")
+            if desde is None:
+                cur.execute("delete from public.visita_ubicacion")
+            else:
+                cur.execute("delete from public.visita_ubicacion where fecha_visita::date >= %s", (desde,))
+                ubicacion = ubicacion[ubicacion["fecha_visita"].dt.date >= desde]
             with cur.copy(f"copy public.visita_ubicacion ({', '.join(UBICACION)}) from stdin") as cp:
                 for fila in ubicacion.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
@@ -165,7 +190,11 @@ def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, u
             with cur.copy(f"copy public.cliente_loantape ({', '.join(CLIENTE)}) from stdin") as cp:
                 for fila in cliente.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
-            cur.execute("delete from public.visita")
+            if desde is None:
+                cur.execute("delete from public.visita")
+            else:
+                cur.execute("delete from public.visita where fecha_visita::date >= %s", (desde,))
+                visita = visita[visita["fecha_visita"].dt.date >= desde]
             with cur.copy(f"copy public.visita ({', '.join(VISITA)}) from stdin") as cp:
                 for fila in visita.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
@@ -182,6 +211,7 @@ def main() -> None:
     ap.add_argument("--origen", default=r"c:\Users\jctorresp\Videos\dashboard_cartera",
                     help="Carpeta del tablero Streamlit (lectura de SQL Server).")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--completo", action="store_true", help="Reemplaza todo el mes (por defecto solo lo nuevo).")
     args = ap.parse_args()
     anio, mes = (int(x) for x in args.mes.split("-"))
 
@@ -202,7 +232,10 @@ def main() -> None:
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
         return
-    cargar(gestion, visita, cliente, ubicacion, (agentes, visitadores, supervisores))
+    desde = None if args.completo else desde_detalle(anio, mes)
+    if desde is not None:
+        print(f"Incremental desde {desde}.")
+    cargar(gestion, visita, cliente, ubicacion, (agentes, visitadores, supervisores), desde)
     print("Detalle cargado en Supabase (gestion y visita del mes).")
 
 
