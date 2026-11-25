@@ -19,8 +19,8 @@ ORIGEN_DEFECTO = Path(r"c:\Users\jctorresp\Videos\dashboard_cartera\data\metas.s
 
 # (tabla Supabase, columnas, consulta SQLite). El orden respeta las llaves foráneas.
 TABLAS = [
-    ("usuarios", ["id", "tipo", "usuario_norm", "nombre_mostrado", "estado"],
-     "select id, tipo, usuario_norm, nombre_mostrado, estado from usuarios"),
+    ("usuarios", ["id", "tipo", "usuario_norm", "nombre_mostrado", "estado", "rol"],
+     "select id, tipo, usuario_norm, nombre_mostrado, estado, rol from usuarios"),
     ("metas_usuario", ["usuario_id", "periodo", "indicador", "valor_meta"],
      "select usuario_id, periodo, indicador, valor_meta from metas_usuario"),
     ("asignaciones", ["usuario_id", "periodo", "supervisor", "tramo", "departamento"],

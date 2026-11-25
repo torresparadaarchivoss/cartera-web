@@ -91,7 +91,57 @@ def _valor(v):
     return v
 
 
-def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, ubicacion: pd.DataFrame) -> None:
+def usuario_de_nombre(nombre) -> str:
+    """Usuario institucional desde el nombre (igual que database_admin/users_repository del Streamlit):
+    «Celia Dolores Hidalgo Guzman» -> cdhidalgog."""
+    import unicodedata
+    base = unicodedata.normalize("NFD", str(nombre or "").lower())
+    base = "".join(c for c in base if unicodedata.category(c) != "Mn")
+    t = [x for x in base.split() if x.isalpha()]
+    if len(t) < 3:
+        return ""
+    return "".join(x[0] for x in t[:-2]) + t[-2] + t[-1][0]
+
+
+def usuarios_del_mes(d) -> tuple[set[str], set[str], set[str]]:
+    """Agentes (gestiones), visitadores (visitas) y supervisores (cartera) que aparecen en el mes."""
+    agentes = {str(u).strip().lower() for u in d.gestiones["usuario"].dropna() if str(u).strip()}
+    visitadores = {str(u).strip().upper() for u in d.visitas["visitador"].dropna() if str(u).strip()} if not d.visitas.empty else set()
+    supervisores = set(d.cartera["supervisor"].dropna().unique().tolist()) if not d.cartera.empty else set()
+    return agentes, visitadores, supervisores
+
+
+def sincronizar_usuarios(cur, agentes: set[str], visitadores: set[str], supervisores: set[str]) -> dict[str, int]:
+    """Alta de usuarios nuevos del mes y rol de los agentes sin rol (reglas del Streamlit, users_repository).
+    Nunca cambia usuarios existentes ni roles ya definidos."""
+    cur.execute("select id, tipo, usuario_norm, rol from public.usuarios")
+    existentes = {(tipo, u): (id_, rol) for id_, tipo, u, rol in cur.fetchall()}
+    siguiente = max([v[0] for v in existentes.values()] or [0]) + 1
+    altas = {"agente": 0, "visitador": 0}
+    for tipo, lista in (("agente", agentes), ("visitador", visitadores)):
+        for u in sorted(lista):
+            if (tipo, u) in existentes:
+                continue
+            rol = "visitador" if tipo == "visitador" else "agente"
+            cur.execute("insert into public.usuarios (id, tipo, usuario_norm, nombre_mostrado, estado, rol) "
+                        "values (%s, %s, %s, %s, 'activo', %s)", (siguiente, tipo, u, u, rol))
+            existentes[(tipo, u)] = (siguiente, rol)
+            siguiente += 1
+            altas[tipo] += 1
+    sup = {usuario_de_nombre(s) for s in supervisores} - {""}
+    vis = {u.lower() for (tipo, u) in existentes if tipo == "visitador"}
+    roles = 0
+    for (tipo, u), (id_, rol) in list(existentes.items()):
+        if tipo != "agente" or rol:
+            continue
+        nuevo = "visitador" if u in vis else "supervisor" if u in sup else "agente"
+        cur.execute("update public.usuarios set rol = %s where id = %s", (nuevo, id_))
+        roles += 1
+    return {"altas_agente": altas["agente"], "altas_visitador": altas["visitador"], "roles_asignados": roles}
+
+
+def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, ubicacion: pd.DataFrame,
+           usuarios: tuple[set[str], set[str], set[str]] | None = None) -> None:
     import psycopg  # solo al escribir: el dry-run no lo necesita
 
     url = os.environ.get("SUPABASE_DB_URL", "").strip()
@@ -115,6 +165,10 @@ def cargar(gestion: pd.DataFrame, visita: pd.DataFrame, cliente: pd.DataFrame, u
             with cur.copy(f"copy public.visita ({', '.join(VISITA)}) from stdin") as cp:
                 for fila in visita.itertuples(index=False):
                     cp.write_row([_valor(v) for v in fila])
+            if usuarios is not None:
+                r = sincronizar_usuarios(cur, *usuarios)
+                print(f"Usuarios: altas agente {r['altas_agente']}, altas visitador {r['altas_visitador']}, "
+                      f"roles asignados {r['roles_asignados']}.")
         con.commit()
 
 
@@ -139,10 +193,12 @@ def main() -> None:
     print(f"Visitas: {len(visita):,} filas (de {len(d.visitas):,} leídas).")
     print(f"Clientes (datos personales, acceso restringido): {len(cliente):,} filas.")
     print(f"Visitas con coordenadas válidas (acceso restringido): {len(ubicacion):,} filas.")
+    agentes, visitadores, supervisores = usuarios_del_mes(d)
+    print(f"Usuarios del mes: {len(agentes):,} agentes, {len(visitadores):,} visitadores, {len(supervisores):,} supervisores.")
     if args.dry_run:
         print("Dry-run: no se escribió nada en Supabase.")
         return
-    cargar(gestion, visita, cliente, ubicacion)
+    cargar(gestion, visita, cliente, ubicacion, (agentes, visitadores, supervisores))
     print("Detalle cargado en Supabase (gestion y visita del mes).")
 
 
