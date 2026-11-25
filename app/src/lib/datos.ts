@@ -296,3 +296,84 @@ export interface CeldaRodamiento {
 export async function rodamientoRealGrilla(fecha: string, f: Filtros): Promise<CeldaRodamiento[]> {
   return lanzar(await supabase.rpc('rodamiento_real_grilla', { p_fecha: fecha, ...args(f) }))
 }
+
+// ----------------------------------------------------------------------------- Cuentas a gestionar (0025, 0022)
+export type VistaCuentas = 'cohorte' | 'activa'
+
+export interface CuentaListado {
+  credito: string
+  origen: string
+  destino: string
+  movimiento: string
+  saldo_congelado: number
+  saldo_dia: number
+  dias_mora: number | null
+  prioridad: string
+  estado_cobranza: string
+  rango_intentos: string
+  top: boolean
+  gestiones_mes: number
+  contacto_mes: number
+  rpc_mes: number
+  promesa_mes: number
+  monto_prometido: number
+  monto_pagado: number
+  ultima_gestion: string | null
+  dias_sin_gestion: number | null
+  visitas_mes: number
+  supervisor: string
+  tipo_credito: string
+  tipo_legal: string
+  gestor: string
+}
+
+export async function cuentasListado(fecha: string, vista: VistaCuentas, f: Filtros): Promise<CuentaListado[]> {
+  return lanzar(await supabase.rpc('cuentas_listado', { p_fecha: fecha, p_vista: vista, ...args(f) }))
+}
+
+export interface GestionDetalle {
+  credito: string
+  fecha_actividad: string
+  usuario: string
+  accion: string
+  resultado: string
+  contacto: number
+  rpc: number
+  promesa: number
+  monto_promesa: number
+  fecha_promesa: string | null
+}
+
+export interface VisitaDetalle {
+  credito: string
+  fecha_visita: string
+  visitador: string
+  accion: string
+  resultado: string
+  causa_no_pago: string
+  parentesco: string
+  num_fotos: number
+  kilometros: number | null
+}
+
+// Consultas por lotes de créditos (la URL no admite listas muy largas).
+async function porLotes<T>(creditos: string[], tabla: string, columnas: string, orden: string): Promise<T[]> {
+  const salida: T[] = []
+  for (let i = 0; i < creditos.length; i += 300) {
+    const lote = creditos.slice(i, i + 300)
+    const res = await supabase.from(tabla).select(columnas).in('credito', lote).order(orden, { ascending: false })
+    if (res.error) throw new Error(res.error.message)
+    salida.push(...((res.data ?? []) as T[]))
+  }
+  return salida
+}
+
+export function gestionesDe(creditos: string[]): Promise<GestionDetalle[]> {
+  return porLotes<GestionDetalle>(creditos, 'gestion',
+    'credito, fecha_actividad, usuario, accion, resultado, contacto, rpc, promesa, monto_promesa, fecha_promesa', 'fecha_actividad')
+}
+
+export function visitasDe(creditos: string[]): Promise<VisitaDetalle[]> {
+  return porLotes<VisitaDetalle>(creditos, 'visita',
+    'credito, fecha_visita, visitador, accion, resultado, causa_no_pago, parentesco, num_fotos, kilometros', 'fecha_visita')
+}
