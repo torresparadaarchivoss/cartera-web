@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
-import type { CuentaListado, PuntoSerie } from '../lib/datos'
+import type { CuentaListado } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
-import { FilaKpi, Grafico, Kpi, Nota, Tabla } from '../components/Bloques'
+import { FilaKpi, Grafico, Kpi, Nota, Tabla, Titulo } from '../components/Bloques'
 import type { Data, Layout } from 'plotly.js'
 
 // Evolución de mora (modules/evolucion_mora.py). Usa la cohorte y la cartera activa de cuentas_listado. Pendiente:
@@ -13,15 +13,13 @@ const BUCKETS = ['0', '1', '2', '3', '4', '5', '6'] as const
 const SIN_REF = 'Sin referencia'
 const MOVS = ['Mejora', 'Mantiene', 'Desmejora', 'Sin registro'] as const
 const COLORES_MOV: Record<string, string> = { Mejora: '#63BE7B', Mantiene: '#A3A8BD', Desmejora: '#F8696B', 'Sin registro': '#D9DCE6' }
-const COLORES_BUCKET = ['#4f5bb8', '#3fa04e', '#f5c451', '#f89040', '#e25c52', '#8a8fa8', '#aeb6ec', '#9C3352']
 
 const esBucket = (x: string) => /^\d$/.test(x)
 
-export default function EvolucionMora() {
+export default function EvolucionCohorte() {
   const { fecha: corte, fechaBase, filtros, cargando } = useDatos()
   const [cohorte, setCohorte] = useState<CuentaListado[] | null>(null)
   const [activa, setActiva] = useState<CuentaListado[] | null>(null)
-  const [serie, setSerie] = useState<PuntoSerie[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -31,13 +29,11 @@ export default function EvolucionMora() {
     Promise.all([
       datos.cuentasListado(corte, 'cohorte', filtros),
       datos.cuentasListado(corte, 'activa', filtros),
-      datos.serie('bucket', filtros),
     ])
-      .then(([c, a, s]) => {
+      .then(([c, a]) => {
         if (!vigente) return
         setCohorte(c)
         setActiva(a)
-        setSerie(s)
       })
       .catch((e: Error) => vigente && setError(e.message))
     return () => {
@@ -73,8 +69,8 @@ export default function EvolucionMora() {
   }, [cohorte, activa])
 
   if (cargando) return <p className="vacio">Cargando…</p>
-  if (error) return <div className="error-pantalla">No se pudo cargar la evolución de mora: {error}</div>
-  if (!t || !corte || !fechaBase || !serie) return <p className="vacio">Cargando la evolución…</p>
+  if (error) return <div className="error-pantalla">No se pudo cargar la evolución de la cohorte: {error}</div>
+  if (!t || !corte || !fechaBase) return <p className="vacio">Cargando la evolución…</p>
   if (t.nCohorte === 0) return <Nota tipo="alerta" texto="No hay cuentas activas con los filtros seleccionados." />
 
   const variacion = t.totAct - t.totIni
@@ -115,21 +111,10 @@ export default function EvolucionMora() {
     }),
     marker: { color: COLORES_MOV[m] },
   } as unknown as Data))
-  const grupos = [...new Set(serie.map((s) => s.grupo))].sort()
-  const fechas = [...new Set(serie.map((s) => s.f_reporte))].sort()
-  const porGrupo: Data[] = grupos.map((g, i) => ({
-    type: 'bar', name: `Bucket ${g}`, x: fechas,
-    y: fechas.map((f) => serie.find((s) => s.f_reporte === f && s.grupo === g)?.saldo ?? 0),
-    marker: { color: COLORES_BUCKET[i % COLORES_BUCKET.length] },
-  } as unknown as Data))
 
   return (
     <>
-      <h1 style={{ marginBottom: 6 }}>Evolución de mora</h1>
-      <p className="dc-desc">
-        Cómo cambia cada bucket durante el mes: foto de saldo y cuentas al inicio frente a la fecha de seguimiento, y cuántas
-        cuentas de la cohorte mejoran, permanecen o empeoran.
-      </p>
+      <Titulo texto="Evolución de la cohorte por bucket inicial" />
 
       <FilaKpi>
         <Kpi etiqueta={`Saldo al ${fecha(fechaBase)}`} valor={dinero(t.totIni)} detalle={`${entero(t.nCohorte)} cuentas activas`} />
@@ -154,9 +139,6 @@ export default function EvolucionMora() {
           layout={{ barmode: 'stack', hovermode: 'x unified', xaxis: { type: 'category' }, yaxis: { tickformat: '.0%', range: [0, 1] } } as Partial<Layout>} alto={320} />
       </div>
 
-      <Grafico titulo="Saldo diario por bucket de mora" data={porGrupo}
-        layout={{ barmode: 'stack', hovermode: 'x unified', xaxis: { type: 'date' } } as Partial<Layout>} alto={340} />
-      <p style={{ fontSize: 12 }}>Cartera activa de cada día con los filtros aplicados.</p>
     </>
   )
 }

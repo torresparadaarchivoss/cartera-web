@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import EvolucionCohorte from '../components/EvolucionCohorte'
 import { useDatos } from '../lib/contexto'
 import * as datos from '../lib/datos'
 import type { Dimension, FilaFlujoGrupo, FilaGrupo, PuntoSerie, Stock } from '../lib/datos'
@@ -222,6 +223,8 @@ export default function Cartera() {
         data={lineas}
         layout={{ yaxis: { tickprefix: '$', tickformat: ',.0f' } }}
       />
+      <EvolucionCohorte />
+
       <Nota texto="Cartera activa de cada día; los atributos son los del día." />
     </>
   )
