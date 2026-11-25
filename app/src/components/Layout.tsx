@@ -9,7 +9,7 @@ const PAGINAS: { ruta?: string; etiqueta: string }[] = [
   { ruta: '/', etiqueta: 'Resumen gerencial' },
   { ruta: '/cartera', etiqueta: 'Cartera' },
   { ruta: '/roll-rates', etiqueta: 'Roll rates' },
-  { etiqueta: 'Rodamiento real' },
+  { ruta: '/rodamiento-real', etiqueta: 'Rodamiento real' },
   { etiqueta: 'Gestión de cobros' },
   { etiqueta: 'Coreografías de gestión' },
   { ruta: '/recuperacion', etiqueta: 'Recuperación' },

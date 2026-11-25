@@ -284,3 +284,15 @@ export interface CeldaRoll {
 export async function rollRatesGrilla(fecha: string, f: Filtros): Promise<CeldaRoll[]> {
   return lanzar(await supabase.rpc('roll_rates_grilla', { p_fecha: fecha, ...args(f) }))
 }
+
+// ----------------------------------------------------------------------------- Rodamiento real (0020)
+export interface CeldaRodamiento {
+  origen: string   // '0'..'6', 'Sin referencia' o 'Nuevo en el mes'
+  destino: string  // '0'..'6' o 'Sin mora'
+  creditos: number
+  saldo_congelado: number
+}
+
+export async function rodamientoRealGrilla(fecha: string, f: Filtros): Promise<CeldaRodamiento[]> {
+  return lanzar(await supabase.rpc('rodamiento_real_grilla', { p_fecha: fecha, ...args(f) }))
+}

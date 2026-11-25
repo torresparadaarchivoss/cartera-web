@@ -9,6 +9,7 @@ import Resumen from './pages/Resumen'
 import Cartera from './pages/Cartera'
 import Recuperacion from './pages/Recuperacion'
 import RollRates from './pages/RollRates'
+import RodamientoReal from './pages/RodamientoReal'
 
 // Guarda: sin sesión → /login
 function Protegido({ children }: { children: JSX.Element }) {
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/cartera" element={<Cartera />} />
             <Route path="/recuperacion" element={<Recuperacion />} />
             <Route path="/roll-rates" element={<RollRates />} />
+            <Route path="/rodamiento-real" element={<RodamientoReal />} />
             <Route
               path="/parametros"
               element={
