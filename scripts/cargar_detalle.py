@@ -24,7 +24,7 @@ CLIENTE = ["credito", "ciudad", "nombre_mod", "fecha_renov", "nombre_deudor", "e
 UBICACION = ["credito", "fecha_visita", "visitador", "resultado", "latitud", "longitud"]
 LAT, LON = (13.0, 14.6), (-90.3, -87.5)  # rango válido (services/visitas.py)
 VISITA = ["credito", "fecha_visita", "visitador", "accion", "resultado", "causa_no_pago", "parentesco", "num_fotos",
-          "kilometros"]
+          "kilometros", "cod_resultado"]
 
 
 def preparar_gestion(g: pd.DataFrame) -> pd.DataFrame:
@@ -57,6 +57,7 @@ def preparar_visita(v: pd.DataFrame) -> pd.DataFrame:
         "parentesco": v["parentesco"].fillna("").astype(str),
         "num_fotos": pd.to_numeric(v["num_fotos"], errors="coerce").fillna(0).astype(int),
         "kilometros": pd.to_numeric(v["kilometros"], errors="coerce"),
+        "cod_resultado": v["cod_resultado"].fillna("").astype(str).str.strip() if "cod_resultado" in v else "",
     })
     return out.dropna(subset=["fecha_visita"])[VISITA]
 

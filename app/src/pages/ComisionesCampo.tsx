@@ -215,7 +215,7 @@ export default function ComisionesCampo() {
             <thead>
               <tr><th>Equipo</th><th>Motorizado</th><th>Crédito</th><th>Asignada</th><th>Visita válida</th><th>Due</th>
                 <th>Saldo</th><th>Cuota</th><th>Recaudo meta</th><th>Recaudo</th><th>Recaudo DMT</th><th>Recaudo válido</th>
-                <th>Tasa</th><th>Comisión</th><th>Paga cuota</th></tr>
+                <th>Tasa</th><th>Comisión</th><th>Paga cuota</th><th>Código de visita</th></tr>
             </thead>
             <tbody>
               {cuentasCalc.map((c, i) => (
@@ -224,7 +224,7 @@ export default function ComisionesCampo() {
                   <td>{c.visita_valida ? 'Sí' : 'No'}</td><td>{c.categoria}</td><td>{dinero(c.saldo, 2)}</td><td>{dinero(c.cuota, 2)}</td>
                   <td>{dinero(c.recaudo_meta, 2)}</td><td>{dinero(c.recaudo, 2)}</td><td>{dinero(c.recaudo_dmt, 2)}</td>
                   <td>{dinero(c.recaudo_valido, 2)}</td><td>{pct(c.tasa)}</td><td>{dinero(c.comision, 2)}</td>
-                  <td>{c.paga_cuota ? 'Sí' : 'No'}</td>
+                  <td>{c.paga_cuota ? 'Sí' : 'No'}</td><td>{c.codigo_visita || '—'}</td>
                 </tr>
               ))}
             </tbody>

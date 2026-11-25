@@ -370,6 +370,7 @@ export interface VisitaDetalle {
   parentesco: string
   num_fotos: number
   kilometros: number | null
+  cod_resultado?: string
 }
 
 // Consultas por lotes de créditos (la URL no admite listas muy largas). Cada lote se pagina: la base devuelve
@@ -447,7 +448,7 @@ async function todasLasFilas<T>(tabla: string, columnas: string, orden: string):
 
 export function visitasMes(): Promise<VisitaDetalle[]> {
   return todasLasFilas<VisitaDetalle>('visita',
-    'credito, fecha_visita, visitador, accion, resultado, causa_no_pago, parentesco, num_fotos, kilometros', 'fecha_visita')
+    'credito, fecha_visita, visitador, accion, resultado, causa_no_pago, parentesco, num_fotos, kilometros, cod_resultado', 'fecha_visita')
 }
 
 export function ubicacionesMes(): Promise<UbicacionDetalle[]> {

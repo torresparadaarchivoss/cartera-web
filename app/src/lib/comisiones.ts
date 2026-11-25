@@ -63,6 +63,7 @@ export interface VisitaC {
   fecha_visita: string
   visitador: string
   resultado: string
+  cod_resultado?: string
 }
 interface VisitaF extends VisitaC {
   fecha: string
@@ -105,6 +106,7 @@ export interface Cuenta {
   tasa: number
   comision: number
   paga_cuota: boolean
+  codigo_visita: string
 }
 
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
@@ -173,6 +175,15 @@ export function cuentas(
   const recEf = ventana(v.filter((x) => !esDmt(x.resultado) && esValido(x.resultado)))
   const recDmt = ventana(v.filter((x) => esDmt(x.resultado) && esValido(x.resultado)))
 
+  // Código de visita: los códigos de resultado de las visitas válidas del par (como el tablero).
+  const codigos = new Map<string, Set<string>>()
+  for (const x of validas) {
+    const c = (x.cod_resultado ?? '').trim()
+    if (!c) continue
+    const k = `${x.visitador}|${x.credito}`
+    codigos.set(k, (codigos.get(k) ?? new Set<string>()).add(c))
+  }
+
   const salida: Cuenta[] = []
   for (const par of pares.values()) {
     const k = `${par.usuario}|${par.credito}`
@@ -201,6 +212,7 @@ export function cuentas(
       saldo: cercana?.saldo ?? 0, cuota, recaudo_meta: recaudoMeta, recaudo, recaudo_dmt: recaudoDmt,
       recaudo_valido: recaudoValido, tasa, comision: recaudoValido * tasa,
       paga_cuota: recaudoValido > 0 && recaudoValido >= cuota,
+      codigo_visita: [...(codigos.get(k) ?? [])].sort().join(', '),
     })
   }
   return salida.sort((a, b) => a.equipo.localeCompare(b.equipo) || a.usuario.localeCompare(b.usuario) || a.fecha_asignacion.localeCompare(b.fecha_asignacion) || a.credito.localeCompare(b.credito))
