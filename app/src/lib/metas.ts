@@ -298,3 +298,16 @@ export function cumplimientoDiario(
 
 // Usuarios que no son agentes de cobro (config.USUARIOS_EXCLUIDOS_GESTION).
 export const EXCLUIDOS_GESTION_USUARIOS = new Set(['arrivasg', 'cdhidalgog', 'eabaltodanom', 'gssolag', 'instacredit', 'jmcastillod', 'mggutierrezl', 'mncanasg'])
+
+// Orden del consolidado (modules/metas.ordenar_usuarios): Administrativa, Legal, sin asignación; luego tramo (M0, M1…)
+// y nombre.
+const ORDEN_TRAMO = ['m0', 'm1', 'm2', 'm3-6 y prg', 'comodin', 'comodín', 'inbound', 'legal', 'comodin legal', 'comodín legal']
+
+export function ordenarPorTramo<T extends { nombre: string; departamento: string | null; tramo: string | null }>(xs: T[]): T[] {
+  const dep = (d: string | null) => (d === 'Administrativa' ? 0 : d === 'Legal' ? 1 : 2)
+  const tramo = (t: string | null) => {
+    const i = ORDEN_TRAMO.indexOf((t ?? '').replace(/\s+/g, ' ').trim().toLowerCase())
+    return i === -1 ? ORDEN_TRAMO.length : i
+  }
+  return [...xs].sort((a, b) => dep(a.departamento) - dep(b.departamento) || tramo(a.tramo) - tramo(b.tramo) || a.nombre.localeCompare(b.nombre))
+}

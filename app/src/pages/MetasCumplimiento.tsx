@@ -8,6 +8,7 @@ import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Plot, Titulo } from '../components/Bloques'
 import { Radios, SelectBox } from '../components/Selectores'
 import * as met from '../lib/metas'
+import { ordenarPorTramo } from '../lib/metas'
 import type { Data, Layout } from 'plotly.js'
 
 // Metas y cumplimiento (modules/metas.py). Misma estructura que el Streamlit: indicadores, «Meta contra resultado» con
@@ -136,11 +137,12 @@ export default function MetasCumplimiento() {
     type: 'funnel', y: etapas, x: valores, textinfo: 'value+percent initial', marker: { color: colores },
   } as unknown as Data]
   // Cumplimiento diario (modules/metas._diario): agente × día laborable, con la meta diaria de Administración.
-  const agentesFiltrados = usuarios.filter((u) => u.tipo === 'agente' && esAgente(u) && (verInactivos || u.estado === 'activo'))
-    .filter((u) => {
+  const agentesFiltrados = ordenarPorTramo(usuarios.filter((u) => u.tipo === 'agente' && esAgente(u) && (verInactivos || u.estado === 'activo'))
+    .map((u) => {
       const a = asig.filter((x) => x.usuario_id === u.id && x.periodo <= periodo).sort((x, y) => y.periodo.localeCompare(x.periodo))[0]
-      return (!supervisor || a?.supervisor === supervisor) && (!departamento || a?.departamento === departamento)
+      return { ...u, nombre: u.nombre_mostrado || u.usuario_norm, departamento: a?.departamento ?? null, tramo: a?.tramo ?? null, supervisor: a?.supervisor ?? null }
     })
+    .filter((u) => (!supervisor || u.supervisor === supervisor) && (!departamento || u.departamento === departamento)))
   const diasDia = met.diasLaborables(gestiones, periodo, corte, PESOS_DIAS)
   const diario = met.cumplimientoDiario(gestiones, agentesFiltrados.map((u) => ({ id: u.id, norm: u.usuario_norm.toLowerCase() })),
     metas, diasDia, medidaDia, PESOS_DIAS)
