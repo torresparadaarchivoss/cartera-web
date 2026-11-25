@@ -79,7 +79,7 @@ EPISODIO = [("credito", "t"), ("fecha_entrada", "d"), ("segmento", "t"), ("clase
             ("paso_acuerdo_d1", "t"), ("paso_visita", "t"), ("paso_combinado", "t"), ("paso_promesa_pago", "t"),
             ("paso_fallido", "t"), ("fecha_fallo", "d"), ("dias_desde_fallo", "i"), ("dias_sin_gestion_max", "i"),
             ("dias_promesa_pago", "i"), ("gestiones_cc", "i"), ("gestiones_campo", "i"), ("alerta_sin_gestion", "b"),
-            ("recup_plazo", "i"), ("fuera_alcance", "b")]
+            ("recup_plazo", "i"), ("fuera_alcance", "b"), ("accion", "t")]
 FPD = [("credito", "t"), ("primera_cuota", "d"), ("fecha_renov", "d"), ("saldopagare", "n"), ("nombre_mod", "t"),
        ("fecha_evaluacion", "d"), ("vence_corte", "b"), ("fpd", "b"), ("clase", "t"), ("supervisor", "t"), ("gestor", "t")]
 

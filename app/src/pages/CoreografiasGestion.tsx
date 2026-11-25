@@ -137,6 +137,7 @@ export default function CoreografiasGestion() {
         <Kpi etiqueta="Visita a tiempo" valor={pct(total.pasos.paso_visita)} detalle="sin acuerdo el día 1" tono={tono(total.pasos.paso_visita)} />
         <Kpi etiqueta="Pagó lo que prometió" valor={pct(total.pasos.paso_promesa_pago)} detalle={`≤ ${entero(config.dias_max_promesa ?? 5)} días`} tono={tono(total.pasos.paso_promesa_pago)} />
         <Kpi etiqueta="Recuperados" valor={pct(total.pctRecuperados)} detalle={`${entero(total.recuperados)} episodios`} tono="bueno" />
+        <Kpi etiqueta="Vencidas sin recuperar" valor={entero(filtrados.filter((x) => x.estado === 'Vencido sin recuperar').length)} detalle="ya pasó el plazo de visita" tono="malo" />
         <Kpi etiqueta="Alertas sin gestión" valor={entero(total.alertas)} detalle={`≥ ${entero(config.dias_alerta_sin_gestion ?? 3)} días seguidos`} tono="malo" />
       </FilaKpi>
       <Nota texto={`Verde desde ${pct(umbralVerde, 0)}, amarillo desde ${pct(umbralAmarillo, 0)}. Entradas fuera de alcance: ${entero(total.fueraAlcance)}.`} />
@@ -171,6 +172,24 @@ export default function CoreografiasGestion() {
           } as unknown as Partial<Layout>} config={{ displayModeBar: false, responsive: true }} style={{ width: '100%' }} useResizeHandler />
         </div>
       )}
+
+      <div className="dc-tarjeta">
+        <Titulo texto="Acción de hoy" />
+        <table className="dc-tabla">
+          <thead><tr><th>Acción</th><th>Episodios</th><th>Saldo de entrada</th></tr></thead>
+          <tbody>
+            {['Urgente', 'Visitar hoy', 'Llamar hoy', 'Sin acción hoy'].map((acc) => {
+              const xs = filtrados.filter((x) => x.accion === acc)
+              return (
+                <tr key={acc}>
+                  <td>{acc}</td><td>{entero(xs.length)}</td><td>{dinero(xs.reduce((t, x) => t + (x.saldo_entrada ?? 0), 0))}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <p style={{ fontSize: 12 }}>Urgente: vencida sin recuperar. Visitar hoy y Llamar hoy: abierta dentro del plazo. Sin acción hoy: abierta sin alerta.</p>
+      </div>
 
       <div className="dc-tarjeta">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

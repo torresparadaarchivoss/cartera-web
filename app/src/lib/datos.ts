@@ -554,6 +554,7 @@ export interface CoreoEpisodio {
   alerta_sin_gestion: boolean
   recup_plazo: number | null
   fuera_alcance: boolean
+  accion: string | null
 }
 
 export interface CoreoFpdFila {
@@ -570,7 +571,7 @@ export interface CoreoFpdFila {
   gestor: string | null
 }
 
-const COLUMNAS_EPISODIO = 'credito, fecha_entrada, segmento, clase, gestor, supervisor, tipo_credito, tipo_legal, nombre_mod, bucket_entrada, saldo_entrada, semana, estado, coreografia, paso_gestion_d1, paso_acuerdo_d1, paso_visita, paso_combinado, paso_promesa_pago, paso_fallido, dias_desde_fallo, dias_sin_gestion_max, dias_promesa_pago, gestiones_cc, gestiones_campo, alerta_sin_gestion, recup_plazo, fuera_alcance'
+const COLUMNAS_EPISODIO = 'credito, fecha_entrada, segmento, clase, gestor, supervisor, tipo_credito, tipo_legal, nombre_mod, bucket_entrada, saldo_entrada, semana, estado, coreografia, paso_gestion_d1, paso_acuerdo_d1, paso_visita, paso_combinado, paso_promesa_pago, paso_fallido, dias_desde_fallo, dias_sin_gestion_max, dias_promesa_pago, gestiones_cc, gestiones_campo, alerta_sin_gestion, recup_plazo, fuera_alcance, accion'
 
 export function coreoEpisodios(): Promise<CoreoEpisodio[]> {
   return todasLasFilas<CoreoEpisodio>('coreo_episodio', COLUMNAS_EPISODIO, 'fecha_entrada')
