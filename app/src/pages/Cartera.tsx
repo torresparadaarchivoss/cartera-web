@@ -4,6 +4,7 @@ import * as datos from '../lib/datos'
 import type { Dimension, FilaFlujoGrupo, FilaGrupo, PuntoSerie, Stock } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Tabla } from '../components/Bloques'
+import { SelectBox } from '../components/Selectores'
 import type { Data } from 'plotly.js'
 
 // Cartera (modules/cartera.py): stock a la fecha de corte por dimensión y su evolución diaria.
@@ -178,20 +179,15 @@ export default function Cartera() {
         <Kpi etiqueta={`Grupos (${etiquetaDim.toLowerCase()})`} valor={entero(tabla.length)} tono="info" />
       </FilaKpi>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', marginBottom: 8 }}>
-        <label style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-          Desglose
-          <select value={dim} onChange={(e) => setDim(e.target.value as Dimension)} style={{ display: 'block', minWidth: 220 }}>
-            {DIMENSIONES.map((d) => <option key={d.valor} value={d.valor}>{d.etiqueta}</option>)}
-          </select>
-        </label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12, marginBottom: 8, maxWidth: 700 }}>
+        <SelectBox etiqueta="Desglose" opciones={DIMENSIONES.map((d) => ({ valor: d.valor, etiqueta: d.etiqueta }))}
+          valor={dim} onChange={setDim} />
         {dim !== 'bucket' && (
-          <label style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-            Grupos en el gráfico
+          <div className="st-campo">
+            <div className="st-etiqueta">Grupos en el gráfico</div>
             <input type="number" min={5} max={50} step={5} value={top}
-              onChange={(e) => setTop(Math.min(50, Math.max(5, Number(e.target.value) || 15)))}
-              style={{ display: 'block', width: 110 }} />
-          </label>
+              onChange={(e) => setTop(Math.min(50, Math.max(5, Number(e.target.value) || 15)))} />
+          </div>
         )}
       </div>
 

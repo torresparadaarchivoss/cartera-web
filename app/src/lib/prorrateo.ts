@@ -1,3 +1,4 @@
+import type * as React from "react"
 // Prorrateo de metas y semáforo (services/targets_engine.py). Los pesos y umbrales son los valores por defecto de
 // config.py: la web no lee APP.ENV. Si el Streamlit usa otros, ajustar aquí.
 export const PESOS_DIAS = [1, 1, 1, 1, 1, 0.5, 0] // lunes ... domingo
@@ -27,4 +28,14 @@ export function semaforo(c: number | null): Semaforo | null {
   if (c >= UMBRAL_VERDE) return 'Verde'
   if (c >= UMBRAL_AMARILLO) return 'Amarillo'
   return 'Rojo'
+}
+
+// Formato condicional de los % de cumplimiento (components/tables.css_cumplimiento): fondo con la escala de Excel
+// del Streamlit y texto negro en negrita; sin meta, texto gris.
+export const CELDA_SEM: Record<Semaforo, string> = { Rojo: '#F98A8B', Amarillo: '#FFE993', Verde: '#85CB98' }
+export const PUNTO_SEM: Record<Semaforo, string> = { Rojo: '#E5534B', Amarillo: '#F2B544', Verde: '#4CAF6A' }
+
+export function estiloCumpl(c: number | null): React.CSSProperties {
+  const s = semaforo(c)
+  return s ? { backgroundColor: CELDA_SEM[s], color: '#000000', fontWeight: 600 } : { color: '#9AA4AF' }
 }

@@ -3,9 +3,9 @@ import type { Data } from 'plotly.js'
 import * as datos from '../lib/datos'
 import type { CreditoLegal, MetasRecuperacion } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
-import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS } from './Bloques'
+import { FilaKpi, Grafico, Kpi, Nota, Titulo } from './Bloques'
 import { MultiSelect } from './Selectores'
-import { UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
+import { estiloCumpl, PUNTO_SEM, UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
 import {
   COMPROBANTES, ORDEN_CANAL, SIN_ASIGNAR, SIN_CANAL, comprobanteDe, tablaAgente, tablaCanal,
   type FilaAgente, type FilaLegal,
@@ -147,12 +147,11 @@ function TablaLegal({ filas, total }: { filas: FilaLegal[]; total: FilaLegal }) 
     entero(f.clientes), entero(f.clientesConPago), pct(f.pctClientesConPago, 2), dinero(f.saldo), dinero(f.recaudo),
     pct(f.pctRecaudo, 2), dinero(f.metaFecha), pct(f.cumplFecha), dinero(f.metaMes), pct(f.cumplMes), dinero(f.promedio),
   ]
-  const color = (c: number | null) => c === null ? undefined : TONOS[c >= UMBRAL_VERDE ? 'bueno' : c >= UMBRAL_AMARILLO ? 'alerta' : 'malo']
   const fila = (f: FilaLegal, etiqueta: string, clase?: string) => (
     <tr key={etiqueta} className={clase}>
       <td>{etiqueta}</td>
       {celdas(f).map((v, i) => (
-        <td key={i} style={(i === 7 || i === 9) ? { color: color(i === 7 ? f.cumplFecha : f.cumplMes), fontWeight: 600 } : undefined}>{v}</td>
+        <td key={i} style={i === 7 ? estiloCumpl(f.cumplFecha) : i === 9 ? estiloCumpl(f.cumplMes) : undefined}>{v}</td>
       ))}
     </tr>
   )
@@ -170,17 +169,17 @@ function TablaLegal({ filas, total }: { filas: FilaLegal[]; total: FilaLegal }) 
 }
 
 function TablaAgente({ mes, filas, total }: { mes: string; filas: FilaAgente[]; total: FilaAgente }) {
-  const punto = (s: FilaAgente['semaforo']) => (s ? <span style={{ color: TONOS[s === 'Verde' ? 'bueno' : s === 'Amarillo' ? 'alerta' : 'malo'], fontSize: '1.15em' }}>●</span> : '')
+  const punto = (s: FilaAgente['semaforo']) => (s ? <span style={{ color: PUNTO_SEM[s], fontSize: '1.15em' }}>●</span> : '')
   const fila = (f: FilaAgente, clase?: string) => (
     <tr key={f.agente} className={clase}>
       <td>{f.agente}</td>
       <td>{f.canal}</td>
-      <td>{dinero(f.meta)}</td>
-      <td>{dinero(f.recuperado)}</td>
+      <td>{dinero(f.meta, 2)}</td>
+      <td>{dinero(f.recuperado, 2)}</td>
       <td style={{ textAlign: 'center' }}>{punto(f.semaforo)}</td>
       <td>{pct(f.alcance)}</td>
-      <td>{dinero(f.faltante)}</td>
-      <td>{f.vigentes ? dinero(f.vigentes) : '—'}</td>
+      <td>{dinero(f.faltante, 2)}</td>
+      <td>{f.vigentes ? dinero(f.vigentes, 2) : '—'}</td>
     </tr>
   )
   return (

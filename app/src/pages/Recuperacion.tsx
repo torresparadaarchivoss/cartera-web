@@ -5,7 +5,7 @@ import * as datos from '../lib/datos'
 import type { BucketRecuperacion, FilaRecuperacion, MetasRecuperacion, PagoDia } from '../lib/datos'
 import { dinero, entero, fecha, pct } from '../lib/formato'
 import { FilaKpi, Grafico, Kpi, Nota, Titulo, TONOS, type Tono } from '../components/Bloques'
-import { factorProrrateo, UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
+import { estiloCumpl, factorProrrateo, UMBRAL_AMARILLO, UMBRAL_VERDE } from '../lib/prorrateo'
 import RecaudoLegal from '../components/RecaudoLegal'
 import { SelectBox } from '../components/Selectores'
 
@@ -162,8 +162,7 @@ export default function Recuperacion() {
 
   const celda = (f: Fila, c: (typeof columnas)[number]) => {
     const v = f[c.clave] as number | null
-    const color = c.semaforo && v !== null ? TONOS[tonoSemaforo(v)] : undefined
-    return <td key={c.etiqueta} style={color ? { color, fontWeight: 600 } : undefined}>{c.formato(v)}</td>
+    return <td key={c.etiqueta} style={c.semaforo ? estiloCumpl(v) : undefined}>{c.formato(v)}</td>
   }
 
   return (
