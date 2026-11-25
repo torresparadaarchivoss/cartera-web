@@ -38,6 +38,19 @@ export interface PuntoSerie {
 
 export type Dimension = 'bucket' | 'supervisor' | 'tipo_credito' | 'tipo_cartera'
 
+// La base devuelve como máximo 1,000 filas por llamada: estas funciones que pueden devolver más traen todo por páginas.
+async function rpcTodas<T>(fn: string, args: Record<string, unknown>, orden: string): Promise<T[]> {
+  const salida: T[] = []
+  for (let desde = 0; ; desde += 1000) {
+    const res = await supabase.rpc(fn, args).order(orden).range(desde, desde + 999)
+    if (res.error) throw new Error(res.error.message)
+    const lote = (res.data ?? []) as T[]
+    salida.push(...lote)
+    if (lote.length < 1000) break
+  }
+  return salida
+}
+
 function args(f: Filtros) {
   return {
     p_supervisor: f.supervisor,
@@ -265,11 +278,11 @@ export interface CreditoLegal {
 }
 
 export async function recaudoLegalBase(fecha: string): Promise<CreditoLegal[]> {
-  return lanzar(await supabase.rpc('recaudo_legal_base', { p_fecha: fecha }))
+  return rpcTodas<CreditoLegal>('recaudo_legal_base', { p_fecha: fecha }, 'credito')
 }
 
 export async function recaudoLegalVigentes(fecha: string): Promise<{ credito: string; monto: number }[]> {
-  return lanzar(await supabase.rpc('recaudo_legal_vigentes', { p_fecha: fecha }))
+  return rpcTodas<{ credito: string; monto: number }>('recaudo_legal_vigentes', { p_fecha: fecha }, 'credito')
 }
 
 // ----------------------------------------------------------------------------- Roll rates (0019)
@@ -328,7 +341,7 @@ export interface CuentaListado {
 }
 
 export async function cuentasListado(fecha: string, vista: VistaCuentas, f: Filtros): Promise<CuentaListado[]> {
-  return lanzar(await supabase.rpc('cuentas_listado', { p_fecha: fecha, p_vista: vista, ...args(f) }))
+  return rpcTodas<CuentaListado>('cuentas_listado', { p_fecha: fecha, p_vista: vista, ...args(f) }, 'credito')
 }
 
 export interface GestionDetalle {
@@ -503,4 +516,67 @@ export function carteraDeCreditos(creditos: string[]): Promise<{
 }[]> {
   return porLotes(creditos, 'cobranza_diaria',
     'credito, f_reporte, saldo, saldo_vencido, valor_cuota, due_inicio_mes, tipo_cartera, tipo_legal', 'f_reporte')
+}
+
+// Coreografías de gestión (calculadas en la carga con el motor del Streamlit: scripts/cargar_coreografias.py).
+export interface CoreoEpisodio {
+  credito: string
+  fecha_entrada: string
+  segmento: string | null
+  clase: string | null
+  gestor: string | null
+  supervisor: string | null
+  tipo_credito: string | null
+  tipo_legal: string | null
+  nombre_mod: string | null
+  bucket_entrada: number | null
+  saldo_entrada: number | null
+  semana: string | null
+  estado: string | null
+  coreografia: string | null
+  paso_gestion_d1: string | null
+  paso_acuerdo_d1: string | null
+  paso_visita: string | null
+  paso_combinado: string | null
+  paso_promesa_pago: string | null
+  paso_fallido: string | null
+  dias_desde_fallo: number | null
+  dias_sin_gestion_max: number | null
+  dias_promesa_pago: number | null
+  gestiones_cc: number | null
+  gestiones_campo: number | null
+  alerta_sin_gestion: boolean
+  recup_plazo: number | null
+  fuera_alcance: boolean
+}
+
+export interface CoreoFpdFila {
+  credito: string
+  primera_cuota: string | null
+  fecha_renov: string | null
+  saldopagare: number | null
+  nombre_mod: string | null
+  fecha_evaluacion: string | null
+  vence_corte: boolean
+  fpd: boolean
+  clase: string | null
+  supervisor: string | null
+  gestor: string | null
+}
+
+const COLUMNAS_EPISODIO = 'credito, fecha_entrada, segmento, clase, gestor, supervisor, tipo_credito, tipo_legal, nombre_mod, bucket_entrada, saldo_entrada, semana, estado, coreografia, paso_gestion_d1, paso_acuerdo_d1, paso_visita, paso_combinado, paso_promesa_pago, paso_fallido, dias_desde_fallo, dias_sin_gestion_max, dias_promesa_pago, gestiones_cc, gestiones_campo, alerta_sin_gestion, recup_plazo, fuera_alcance'
+
+export function coreoEpisodios(): Promise<CoreoEpisodio[]> {
+  return todasLasFilas<CoreoEpisodio>('coreo_episodio', COLUMNAS_EPISODIO, 'fecha_entrada')
+}
+
+export function coreoFpd(): Promise<CoreoFpdFila[]> {
+  return todasLasFilas<CoreoFpdFila>('coreo_fpd',
+    'credito, primera_cuota, fecha_renov, saldopagare, nombre_mod, fecha_evaluacion, vence_corte, fpd, clase, supervisor, gestor', 'credito')
+}
+
+export async function coreoConfig(periodo: string): Promise<Record<string, number>> {
+  const res = await supabase.from('coreo_config').select('clave, valor').eq('periodo', periodo)
+  if (res.error) throw new Error(res.error.message)
+  return Object.fromEntries(((res.data ?? []) as { clave: string; valor: number }[]).map((x) => [x.clave, Number(x.valor)]))
 }

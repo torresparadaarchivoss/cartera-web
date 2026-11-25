@@ -183,7 +183,7 @@ export default function ComisionesCampo() {
                 <th>Tasa</th><th>Comisión</th><th>Paga cuota</th></tr>
             </thead>
             <tbody>
-              {cuentasCalc.slice(0, 1000).map((c, i) => (
+              {cuentasCalc.map((c, i) => (
                 <tr key={i}>
                   <td>{c.equipo}</td><td>{nombres.get(c.usuario) ?? c.usuario}</td><td>{c.credito}</td><td>{fecha(c.fecha_asignacion)}</td>
                   <td>{c.visita_valida ? 'Sí' : 'No'}</td><td>{c.categoria}</td><td>{dinero(c.saldo, 2)}</td><td>{dinero(c.cuota, 2)}</td>
@@ -195,7 +195,6 @@ export default function ComisionesCampo() {
             </tbody>
           </table>
         </div>
-        {cuentasCalc.length > 1000 && <p style={{ fontSize: 12 }}>Se muestran las primeras 1,000 cuentas.</p>}
       </div>
     </>
   )

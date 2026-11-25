@@ -129,7 +129,7 @@ export default function CuentasGestionar() {
   // Gestiones y visitas de las cuentas listadas (solo cuando hay pocas, para no traer miles de filas).
   useEffect(() => {
     const creditos = lista.map((c) => c.credito)
-    if (creditos.length === 0 || creditos.length > 2000) {
+    if (creditos.length === 0) {
       setGest([])
       setVis([])
       setClientes([])
@@ -263,25 +263,20 @@ export default function CuentasGestionar() {
               <tr>{cols.map((c) => <th key={c.e}>{c.e}</th>)}</tr>
             </thead>
             <tbody>
-              {lista.slice(0, 1000).map((c) => (
+              {lista.map((c) => (
                 <tr key={c.credito}>{cols.map((col) => <td key={col.e}>{col.f(c)}</td>)}</tr>
               ))}
             </tbody>
           </table>
         </div>
-        {lista.length > 1000 && <p style={{ fontSize: 12 }}>Se muestran las primeras 1,000 cuentas; el CSV trae el listado completo.</p>}
       </div>
-
-      {lista.length > 2000 && (
-        <Nota tipo="alerta" texto="Hay más de 2,000 cuentas en el listado: el detalle de gestiones y visitas se muestra al filtrar más." />
-      )}
 
       <div className="dc-tarjeta">
         <Titulo texto={`Gestiones de estas cuentas (${entero(gest.length)})`} />
         <table className="dc-tabla">
           <thead><tr><th>Fecha</th><th>Crédito</th><th>Agente</th><th>Acción</th><th>Resultado</th><th>Contacto</th><th>RPC</th><th>Promesa</th><th>Monto prometido</th><th>Fecha de promesa</th></tr></thead>
           <tbody>
-            {gest.slice(0, 1000).map((g, i) => (
+            {gest.map((g, i) => (
               <tr key={i}>
                 <td>{fecha(g.fecha_actividad.slice(0, 10))}</td><td>{g.credito}</td><td>{g.usuario}</td><td>{g.accion}</td>
                 <td>{g.resultado}</td><td>{g.contacto ? 'Sí' : 'No'}</td><td>{g.rpc ? 'Sí' : 'No'}</td><td>{g.promesa ? 'Sí' : 'No'}</td>
@@ -303,7 +298,7 @@ export default function CuentasGestionar() {
                   <tr><th>Crédito</th><th>Nombre</th><th>Edad</th><th>Género</th><th>Salario</th><th>Profesión</th><th>Domicilio</th><th>Dirección de trabajo</th><th>Ciudad</th></tr>
                 </thead>
                 <tbody>
-                  {clientes.slice(0, 1000).map((c) => (
+                  {clientes.map((c) => (
                     <tr key={c.credito}>
                       <td>{c.credito}</td><td>{c.nombre_deudor ?? '—'}</td><td>{c.edad ?? '—'}</td><td>{c.genero ?? '—'}</td>
                       <td>{c.salario === null ? '—' : dinero(c.salario)}</td><td>{c.profesion ?? '—'}</td>
@@ -332,7 +327,7 @@ export default function CuentasGestionar() {
         <table className="dc-tabla">
           <thead><tr><th>Fecha</th><th>Crédito</th><th>Visitador</th><th>Acción</th><th>Resultado</th><th>Causa de no pago</th><th>Parentesco</th><th>Fotos</th><th>Km</th></tr></thead>
           <tbody>
-            {vis.slice(0, 1000).map((v, i) => (
+            {vis.map((v, i) => (
               <tr key={i}>
                 <td>{fecha(v.fecha_visita.slice(0, 10))}</td><td>{v.credito}</td><td>{v.visitador}</td><td>{v.accion}</td>
                 <td>{v.resultado}</td><td>{v.causa_no_pago}</td><td>{v.parentesco}</td><td>{entero(v.num_fotos)}</td>

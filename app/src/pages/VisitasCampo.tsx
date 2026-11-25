@@ -255,7 +255,7 @@ export default function VisitasCampo() {
               <tr><th>Fecha</th><th>Crédito</th><th>Visitador</th><th>Acción</th><th>Resultado</th><th>Causa de no pago</th><th>Parentesco</th><th>Fotos</th><th>Km</th></tr>
             </thead>
             <tbody>
-              {detalle.slice(0, 1000).map((x, i) => (
+              {detalle.map((x, i) => (
                 <tr key={i}>
                   <td>{fecha(x.fecha_visita.slice(0, 10))}</td><td>{x.credito}</td><td>{x.visitador}</td><td>{x.accion}</td>
                   <td>{x.resultado}</td><td>{x.causa_no_pago}</td><td>{x.parentesco}</td><td>{entero(x.num_fotos)}</td>
