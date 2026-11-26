@@ -19,6 +19,7 @@ from pathlib import Path
 PYTHON_ORIGEN = Path(r"C:\Users\jctorresp\Videos\dashboard_cartera\.venv\Scripts\python.exe")
 AQUI = Path(__file__).resolve().parent
 BLOQUEO = AQUI / ".carga_en_curso"
+TIMEOUT_PASO_S = 45 * 60  # cada paso (cobranza, detalle) tiene como máximo 45 min
 
 
 def _conectar():
@@ -41,8 +42,13 @@ def _registrar(clave: str, estado: str, detalle: str, ahora: dt.datetime) -> Non
 
 
 def _correr(script: str, *args: str) -> None:
-    res = subprocess.run([str(PYTHON_ORIGEN), str(AQUI / script), *args], capture_output=True, text=True,
-                         encoding="utf-8", errors="replace", env={**os.environ, "PYTHONUTF8": "1"})
+    # Límite por paso: un SQL Server que no responde no puede dejar el run colgado (y la tarea ocupada) para siempre.
+    try:
+        res = subprocess.run([str(PYTHON_ORIGEN), str(AQUI / script), *args], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", env={**os.environ, "PYTHONUTF8": "1"},
+                             timeout=TIMEOUT_PASO_S)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"{script} superó {TIMEOUT_PASO_S // 60} min y se cortó (posible SQL Server sin respuesta).") from exc
     if res.returncode != 0:
         raise RuntimeError(f"{script} falló:\n{res.stderr[-1500:]}")
 
