@@ -221,13 +221,13 @@ export default function RollRates() {
               filas={evoBloque.filas}
               total={evoBloque.total}
               colorFilas={evoColor.filas}
-              columnas={['Mejora', 'Mantiene', 'Desmejora']}
+              columnas={['Desmejora', 'Mantiene', 'Mejora']}
               medida={medida}
-              cumplimientoEn={['Mejora', 'Desmejora']}
+              cumplimientoEn={['Desmejora', 'Mejora']}
               metas={(evalBuckets ?? []).map((f) => [
-                { ...f.mejora, noAplica: f.bucket === '0' },
-                { ...f.mantiene, noAplica: false },
                 { ...f.desmejora, noAplica: f.bucket === '6' },
+                { ...f.mantiene, noAplica: false },
+                { ...f.mejora, noAplica: f.bucket === '0' },
               ])}
             />
             <p style={{ fontSize: 12, marginTop: 8 }}>
