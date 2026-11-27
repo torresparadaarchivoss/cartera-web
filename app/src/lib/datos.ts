@@ -354,6 +354,16 @@ export async function cuentasListado(fecha: string, vista: VistaCuentas, f: Filt
   return rpcTodas<CuentaListado>('cuentas_listado', { p_fecha: fecha, p_vista: vista, ...args(f) }, 'credito')
 }
 
+export interface ClaseCredito {
+  credito: string
+  clase: string
+}
+
+// Clase de crédito (PYMES / Asalariado / No Asalariado) por crédito: solo crédito y clase, sin datos del cliente.
+export async function clasesCuentas(fecha: string): Promise<ClaseCredito[]> {
+  return rpcTodas<ClaseCredito>('clase_cuentas', { p_fecha: fecha }, 'credito')
+}
+
 export interface GestionDetalle {
   credito: string
   fecha_actividad: string
