@@ -243,14 +243,17 @@ def estado_diario(cartera: pd.DataFrame, promesas: pd.DataFrame) -> pd.DataFrame
         g = promesas[promesas["fecha_gestion"].dt.normalize() <= t] if not promesas.empty else promesas
         if g.empty:
             continue
-        ult = g.drop_duplicates("credito", keep="last")
-        ult_mes = g[g["del_mes"]].drop_duplicates("credito", keep="last")
+        # Criterio de 2026-11-27 (decidido por el usuario): todas las promesas, repromesas incluidas.
+        # Vencidas: promesas del mes con fecha de pago anterior a hoy y registradas hasta ayer.
+        # Vigentes: todas las promesas (mes actual y anterior) con fecha de pago desde hoy.
+        # Promesado del mes: todas las promesas del mes, incluidas las de hoy.
+        ayer = g["fecha_gestion"].dt.normalize() < t
         def agg(x):
             return x.groupby("credito", as_index=False).agg(monto=("monto", "sum"), n_promesas=("monto", "size"))
         por_estado = {
-            "Vencidas": agg(g[g["del_mes"] & (g["fecha_promesa"] < t)]),
-            "Vigentes": agg(ult[ult["fecha_promesa"] >= t]),
-            "Promesado del mes": agg(ult_mes),
+            "Vencidas": agg(g[g["del_mes"] & (g["fecha_promesa"] < t) & ayer]),
+            "Vigentes": agg(g[g["fecha_promesa"] >= t]),
+            "Promesado del mes": agg(g[g["del_mes"]]),
             "Del día": agg(g[g["fecha_gestion"].dt.normalize() == t]),
         }
         for estado, x in por_estado.items():

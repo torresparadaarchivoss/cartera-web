@@ -111,7 +111,7 @@ export default function Promesas({ corte, filtros }: Props) {
   return (
     <>
       <Titulo texto="Promesas"
-        ayuda="En vivo: la foto de cartera del día se toma antes de que empiece la gestión, así que aquí se suman también las promesas registradas durante el día. Vencidas: promesas del mes con fecha de pago anterior al corte. Promesas activas: última promesa de cada crédito con fecha de pago desde el corte. Monto pagado: pendiente de esta versión." />
+        ayuda="En vivo: la foto de cartera del día se toma antes de que empiece la gestión, así que aquí se suman también las promesas registradas durante el día. Vencidas: promesas del mes con fecha de pago anterior al corte, registradas hasta ayer. Promesas activas: todas las promesas (repromesas incluidas) con fecha de pago desde el corte. Promesado del mes: todas las promesas del mes, con repromesas. Monto pagado: pendiente de esta versión." />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12, marginBottom: 8, maxWidth: 900 }}>
         <MultiSelect etiqueta="Supervisor" opciones={opciones?.supervisor ?? []} valor={sec.supervisor}
           formato={(v) => v || '(sin dato)'} onChange={(v) => setSec({ ...sec, supervisor: v })} />
