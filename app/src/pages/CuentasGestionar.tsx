@@ -256,8 +256,11 @@ export default function CuentasGestionar() {
   ]
 
   const descargarTodo = () => {
+    // Tipo de crédito (PYMES / Asalariado / No Asalariado en MCCOLLECT), justo después del crédito, como en el Streamlit.
     const hojaCuentas = lista.map((c) => ({
-      ...Object.fromEntries(cols.map((col) => [col.e, col.f(c)])),
+      ...Object.fromEntries(cols.flatMap((col) => (col.e === 'Crédito'
+        ? [[col.e, col.f(c)], ['Tipo de crédito', c.tipo_credito]]
+        : [[col.e, col.f(c)]]))),
       ...(esAdmin ? { 'Tipo de ruta domicilio': rutasDe(c.credito).dom, 'Tipo de ruta trabajo': rutasDe(c.credito).trab } : {}),
     }))
     const hojaGest = gest.map((g) => ({
