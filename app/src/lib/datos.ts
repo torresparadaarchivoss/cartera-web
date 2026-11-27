@@ -359,6 +359,7 @@ export interface ClaseCredito {
   modalidad: string
   clase: string
   es_prorroga: boolean
+  nuevo_mes: boolean
 }
 
 // Modalidad (nombre_mod), clase de crédito (PYMES / Asalariado / No Asalariado) y Prórroga por crédito: sin datos del cliente.

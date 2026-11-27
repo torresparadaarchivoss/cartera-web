@@ -38,6 +38,16 @@ function ordenar(a: CuentaListado, b: CuentaListado): number {
 
 const distintos = (xs: string[]) => [...new Set(xs.filter((x) => x !== ''))].sort()
 
+// Segmento como en el Streamlit: Prórroga (nombre_mod), FPD = crédito nuevo del mes (criterio simplificado), PYME y Otros.
+const SEGMENTOS_CUENTAS = ['Prórroga', 'FPD', 'PYME', 'Otros'] as const
+function segmentoDe(k: datos.ClaseCredito | undefined): string {
+  if (!k) return 'Sin dato'
+  if (k.es_prorroga) return 'Prórroga'
+  if (k.nuevo_mes) return 'FPD'
+  if (k.clase === 'PYMES') return 'PYME'
+  return 'Otros'
+}
+
 // Mapa de visitas (modules/visitas.py: scatter_map, zoom 8, color por visitador).
 function MapaVisitas({ ubicaciones }: { ubicaciones: UbicacionDetalle[] }) {
   const porVisitador = new Map<string, UbicacionDetalle[]>()
@@ -81,6 +91,7 @@ export default function CuentasGestionar() {
   const [estrategia, setEstrategia] = useState<(typeof ESTRATEGIAS)[number]>('Prioridad de cobranza')
   const [poblacion, setPoblacion] = useState<(typeof POBLACIONES)[number]>('Cartera activa en la fecha')
   const [movs, setMovs] = useState<string[]>([])
+  const [segs, setSegs] = useState<string[]>([])
   const [bIni, setBIni] = useState<string[]>([])
   const [bAct, setBAct] = useState<string[]>([])
   const [prios, setPrios] = useState<string[]>([])
@@ -155,6 +166,7 @@ export default function CuentasGestionar() {
     if (esAdmin && rutaDom.length) x = x.filter((c) => rutaDom.includes(rutasDe(c.credito).dom))
     if (esAdmin && rutaTrab.length) x = x.filter((c) => rutaTrab.includes(rutasDe(c.credito).trab))
     if (movs.length) x = x.filter((c) => movs.includes(c.movimiento))
+    if (segs.length) x = x.filter((c) => segs.includes(segmentoDe(clases.get(c.credito))))
     if (bIni.length) x = x.filter((c) => bIni.includes(c.origen))
     if (bAct.length) x = x.filter((c) => bAct.includes(c.destino))
     if (prios.length) x = x.filter((c) => prios.includes(c.prioridad))
@@ -164,7 +176,7 @@ export default function CuentasGestionar() {
     if (minSinGestion) x = x.filter((c) => c.dias_sin_gestion === null || c.dias_sin_gestion >= minSinGestion)
     if (buscar.trim()) x = x.filter((c) => c.credito.toLowerCase().includes(buscar.trim().toLowerCase()))
     return x
-  }, [base, movs, bIni, bAct, prios, estados, visita, minSinGestion, buscar, esAdmin, rutaDom, rutaTrab, clientePorCredito])
+  }, [base, movs, segs, clases, bIni, bAct, prios, estados, visita, minSinGestion, buscar, esAdmin, rutaDom, rutaTrab, clientePorCredito])
 
   const lista = useMemo(
     () => (estrategia === 'Cuentas Top' ? prefiltro.filter((c) => c.top) : prefiltro),
@@ -274,7 +286,8 @@ export default function CuentasGestionar() {
       ...Object.fromEntries(cols.flatMap((col) => (col.e === 'Crédito'
         ? [[col.e, col.f(c)], ['Tipo de crédito', c.tipo_credito], ['Modalidad (nombre_mod)', clases.get(c.credito)?.modalidad ?? ''],
           ['Clase de crédito', clases.get(c.credito)?.clase ?? ''],
-          ['Prórroga', clases.has(c.credito) ? (clases.get(c.credito)?.es_prorroga ? 'Sí' : 'No') : '']]
+          ['Prórroga', clases.has(c.credito) ? (clases.get(c.credito)?.es_prorroga ? 'Sí' : 'No') : ''],
+          ['Segmento', segmentoDe(clases.get(c.credito))]]
         : [[col.e, col.f(c)]]))),
       ...(esAdmin ? { 'Tipo de ruta domicilio': rutasDe(c.credito).dom, 'Tipo de ruta trabajo': rutasDe(c.credito).trab } : {}),
     }))
@@ -312,6 +325,7 @@ export default function CuentasGestionar() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
           <MultiSelect etiqueta="Clasificación" opciones={distintos(base.map((c) => c.movimiento))} valor={movs} onChange={setMovs} placeholder="Todas" />
+          <MultiSelect etiqueta="Segmento" opciones={[...SEGMENTOS_CUENTAS]} valor={segs} onChange={setSegs} placeholder="Todos" />
           <MultiSelect etiqueta="Bucket inicial" opciones={distintos(base.map((c) => c.origen))} valor={bIni} onChange={setBIni} placeholder="Todos" />
           <MultiSelect etiqueta="Bucket actual" opciones={distintos(base.map((c) => c.destino))} valor={bAct} onChange={setBAct} placeholder="Todos" />
           <MultiSelect etiqueta="Prioridad" opciones={distintos(base.map((c) => c.prioridad))} valor={prios} onChange={setPrios}
