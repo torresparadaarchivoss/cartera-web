@@ -131,12 +131,12 @@ export default function CuentasGestionar() {
   }, [cuentas, esAdmin])
 
   // Clase de crédito para el Excel. Si la función aún no está en la base, el Excel sale con la clase vacía.
-  const [clases, setClases] = useState<Map<string, string>>(new Map())
+  const [clases, setClases] = useState<Map<string, datos.ClaseCredito>>(new Map())
   useEffect(() => {
     if (!corte) return
     let vigente = true
     datos.clasesCuentas(corte)
-      .then((cs) => vigente && setClases(new Map(cs.map((x) => [x.credito, x.clase] as const))))
+      .then((cs) => vigente && setClases(new Map(cs.map((x) => [x.credito, x] as const))))
       .catch(() => vigente && setClases(new Map()))
     return () => {
       vigente = false
@@ -272,7 +272,8 @@ export default function CuentasGestionar() {
     // Tipo de crédito (MCCOLLECT) y clase de crédito (PYMES / Asalariado / No Asalariado), después del crédito, como en el Streamlit.
     const hojaCuentas = lista.map((c) => ({
       ...Object.fromEntries(cols.flatMap((col) => (col.e === 'Crédito'
-        ? [[col.e, col.f(c)], ['Tipo de crédito', c.tipo_credito], ['Clase de crédito', clases.get(c.credito) ?? '']]
+        ? [[col.e, col.f(c)], ['Tipo de crédito', c.tipo_credito], ['Clase de crédito', clases.get(c.credito)?.clase ?? ''],
+          ['Prórroga', clases.has(c.credito) ? (clases.get(c.credito)?.es_prorroga ? 'Sí' : 'No') : '']]
         : [[col.e, col.f(c)]]))),
       ...(esAdmin ? { 'Tipo de ruta domicilio': rutasDe(c.credito).dom, 'Tipo de ruta trabajo': rutasDe(c.credito).trab } : {}),
     }))
