@@ -356,11 +356,12 @@ export async function cuentasListado(fecha: string, vista: VistaCuentas, f: Filt
 
 export interface ClaseCredito {
   credito: string
+  modalidad: string
   clase: string
   es_prorroga: boolean
 }
 
-// Clase de crédito (PYMES / Asalariado / No Asalariado) y Prórroga por crédito: sin datos del cliente.
+// Modalidad (nombre_mod), clase de crédito (PYMES / Asalariado / No Asalariado) y Prórroga por crédito: sin datos del cliente.
 export async function clasesCuentas(fecha: string): Promise<ClaseCredito[]> {
   return rpcTodas<ClaseCredito>('clase_cuentas', { p_fecha: fecha }, 'credito')
 }

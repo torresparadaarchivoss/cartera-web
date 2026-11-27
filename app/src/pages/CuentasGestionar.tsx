@@ -272,7 +272,8 @@ export default function CuentasGestionar() {
     // Tipo de crédito (MCCOLLECT) y clase de crédito (PYMES / Asalariado / No Asalariado), después del crédito, como en el Streamlit.
     const hojaCuentas = lista.map((c) => ({
       ...Object.fromEntries(cols.flatMap((col) => (col.e === 'Crédito'
-        ? [[col.e, col.f(c)], ['Tipo de crédito', c.tipo_credito], ['Clase de crédito', clases.get(c.credito)?.clase ?? ''],
+        ? [[col.e, col.f(c)], ['Tipo de crédito', c.tipo_credito], ['Modalidad (nombre_mod)', clases.get(c.credito)?.modalidad ?? ''],
+          ['Clase de crédito', clases.get(c.credito)?.clase ?? ''],
           ['Prórroga', clases.has(c.credito) ? (clases.get(c.credito)?.es_prorroga ? 'Sí' : 'No') : '']]
         : [[col.e, col.f(c)]]))),
       ...(esAdmin ? { 'Tipo de ruta domicilio': rutasDe(c.credito).dom, 'Tipo de ruta trabajo': rutasDe(c.credito).trab } : {}),
