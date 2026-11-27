@@ -117,6 +117,7 @@ def promesas_filas(gestiones_mes: pd.DataFrame, gestiones_previas: pd.DataFrame,
 
 
 SIN_ASIGNAR = frozenset({"", "sin asignar"})
+DIA_INICIO_GESTOR = 5  # criterio de gestor de cartera (2026-11-27): fotos desde el día 5
 FRACCION_CUENTAS_TOP = 0.60
 SIN_MORA = "Sin mora"
 SIN_REFERENCIA = "Sin referencia"
@@ -148,12 +149,22 @@ def marcar_top(cartera: pd.DataFrame) -> pd.Series:
 
 
 def ultimo_gestor(cartera: pd.DataFrame) -> pd.Series:
-    """Por crédito: el último gestor asignado válido del mes (services/calculations.py ultimo_gestor)."""
+    """Por crédito: el PR_MC_UASIGNADO válido con más fotos desde el día 5 del mes (si el crédito no tiene fotos desde
+    el día 5, cuentan todas las del mes). Empate: la foto más reciente. Réplica de services/calculations.ultimo_gestor
+    (criterio de 2026-11-27)."""
     if cartera.empty:
         return pd.Series(dtype=str)
     g = cartera["gestor"].fillna("").astype(str)
-    c = cartera.loc[~g.str.strip().str.lower().isin(SIN_ASIGNAR), ["credito", "f_reporte", "gestor"]]
-    return c.sort_values("f_reporte", kind="stable").groupby("credito")["gestor"].last()
+    c = cartera.loc[~g.str.strip().str.lower().isin(SIN_ASIGNAR), ["credito", "f_reporte", "gestor"]].copy()
+    if c.empty:
+        return pd.Series(dtype=str)
+    c["_f"] = pd.to_datetime(c["f_reporte"]).dt.normalize()
+    desde5 = c[c["_f"].dt.day >= DIA_INICIO_GESTOR]
+    base = pd.concat([desde5, c[~c["credito"].isin(desde5["credito"])]], ignore_index=True)
+    cnt = (base.groupby(["credito", "gestor"])["_f"].agg(["nunique", "max"]).reset_index()
+           .sort_values(["credito", "nunique", "max"], kind="stable")
+           .groupby("credito", as_index=False).tail(1))
+    return cnt.set_index("credito")["gestor"]
 
 
 def pagos_enriquecidos(pagos: pd.DataFrame, cartera: pd.DataFrame) -> pd.DataFrame:
